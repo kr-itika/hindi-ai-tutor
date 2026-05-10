@@ -202,4 +202,4 @@ def get_all_students():
 
 
 # Always ensure tables exist when this module is imported
-init_db()
+init_db()

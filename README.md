@@ -17,7 +17,7 @@ An AI-powered Hindi tutor that explains concepts in simple Hindi using local LLM
 | Component | Technology |
 |-----------|-----------|
 | Frontend | Streamlit |
-| LLM Backend | Ollama (gemma3:1b) |
+| LLM Backend | Ollama (gemma4:e4b) |
 | Database | SQLite |
 | Auth | SHA-256 hashed passwords |
 | Voice | Web Speech API (browser-native) |
@@ -64,7 +64,7 @@ source venv/bin/activate  # Linux/Mac
 pip install -r requirements.txt
 
 # Pull the LLM model
-ollama pull gemma3:1b
+ollama pull gemma4:e4b
 ```
 
 ### Running
@@ -86,7 +86,22 @@ streamlit run app.py
 
 ### Teacher Dashboard
 
-Navigate to the **Teacher Dashboard** page in the sidebar. Default password: `teacher123`
+Navigate to the **Teacher Dashboard** page in the sidebar. Set the password via environment variable:
+
+```bash
+# Linux/Mac
+export TEACHER_PASSWORD="your_secure_password"
+
+# Windows
+set TEACHER_PASSWORD=your_secure_password
+```
+
+Or add it to `.streamlit/secrets.toml` (gitignored):
+```toml
+teacher_password = "your_secure_password"
+```
+
+Fallback default: `teacher123`
 
 ## 📊 Database
 

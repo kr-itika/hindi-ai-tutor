@@ -1,3 +1,4 @@
+import os
 import streamlit as st
 import pandas as pd
 from db_manager import get_teacher_dashboard_data, get_all_students, DB_NAME
@@ -10,8 +11,12 @@ st.set_page_config(
 
 st.title("📊 Teacher Dashboard")
 
-# Simple password protection
-TEACHER_PASSWORD = "teacher123"
+# Password from environment variable or Streamlit secrets (never hardcoded)
+try:
+    _default = st.secrets.get("teacher_password", "teacher123")
+except Exception:
+    _default = "teacher123"
+TEACHER_PASSWORD = os.environ.get("TEACHER_PASSWORD", _default)
 
 if "teacher_auth" not in st.session_state:
     st.session_state["teacher_auth"] = False

@@ -24,4 +24,4 @@ It provides:
 * A table of all student activity
 * A list of all registered students
 * Topic-wise status breakdown with charts
-* Top struggling topics analysis
+* Top struggling topics analysis

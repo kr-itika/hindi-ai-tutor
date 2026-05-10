@@ -2,7 +2,7 @@ import requests
 import json
 
 OLLAMA_URL = "http://localhost:11434/api/generate"
-MODEL_NAME = "gemma3:4b"
+MODEL_NAME = "gemma4:e4b"
 
 SYSTEM_PROMPT = """Tum ek friendly Hindi tutor ho jo students ko simple Hindi mein padhata hai.
 
@@ -76,4 +76,4 @@ def get_response(user_input, chat_history=None):
     except json.JSONDecodeError:
         return {"tutor_response": "⚠️ Model ne galat format diya. Phir se try karo.", "topic": "Error", "status": "Error"}
     except Exception as e:
-        return {"tutor_response": f"⚠️ Kuch gadbad ho gayi: {e}", "topic": "Error", "status": "Error"}
+        return {"tutor_response": f"⚠️ Kuch gadbad ho gayi: {e}", "topic": "Error", "status": "Error"}

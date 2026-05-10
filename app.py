@@ -174,4 +174,4 @@ else:
                     status=status,
                 )
                 # A tiny pop-up to show the system is tracking data
-                st.toast(f"🧠 Tracked: {topic} ({status})")
+                st.toast(f"🧠 Tracked: {topic} ({status})")
