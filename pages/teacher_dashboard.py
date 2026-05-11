@@ -1,7 +1,7 @@
 import os
 import streamlit as st
 import pandas as pd
-from db_manager import get_teacher_dashboard_data, get_all_students, DB_NAME
+from db_manager import get_teacher_dashboard_data, get_all_students, get_quiz_dashboard_data, DB_NAME
 
 st.set_page_config(
     page_title="Teacher Dashboard 📊",
@@ -34,7 +34,7 @@ else:
     # --- Dashboard Content ---
     st.success("✅ Teacher mode active")
 
-    tab1, tab2, tab3 = st.tabs(["📋 All Activity", "👥 Students", "📈 Topic Analysis"])
+    tab1, tab2, tab3, tab4 = st.tabs(["📋 All Activity", "👥 Students", "📈 Topic Analysis", "📝 Quiz Performance"])
 
     with tab1:
         st.subheader("Recent Student Activity")
@@ -68,6 +68,26 @@ else:
                 st.subheader("⚠️ Most Struggled Topics")
                 topic_counts = struggling["concept_name"].value_counts().head(10)
                 st.bar_chart(topic_counts)
+
+    with tab4:
+        st.subheader("Quiz Performance")
+        quiz_df = get_quiz_dashboard_data()
+        if quiz_df.empty:
+            st.info("Abhi tak koi quiz data nahi hai. Students ko pehle quiz dene do!")
+        else:
+            st.dataframe(quiz_df, use_container_width=True)
+
+            # Quiz accuracy chart
+            result_counts = quiz_df["result"].value_counts()
+            st.subheader("📊 Quiz Accuracy")
+            st.bar_chart(result_counts)
+
+            # Topics with most wrong answers
+            wrong = quiz_df[quiz_df["result"] == "Wrong ❌"]
+            if not wrong.empty:
+                st.subheader("⚠️ Topics Needing More Practice")
+                weak_topics = wrong["topic"].value_counts().head(10)
+                st.bar_chart(weak_topics)
 
     st.divider()
     if st.button("🚪 Logout"):

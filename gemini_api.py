@@ -3,7 +3,7 @@ import json
 
 # Using /api/chat for native multimodal (text + image) support
 OLLAMA_URL = "http://localhost:11434/api/chat"
-MODEL_NAME = "gemma3:1b"
+MODEL_NAME = "gemma4:e4b"
 
 SYSTEM_PROMPT = """Tum ek ADAPTIVE Hindi tutor ho jo rural India ke students ko simple Hindi mein padhata hai.
 Tum sirf ek chatbot nahi ho — tum ek SMART TUTOR AGENT ho jo har message ke baad DECIDE karta hai ki aage kya karna chahiye.

@@ -201,6 +201,7 @@ else:
                         # Create thumbnail for preview
                         img.thumbnail((300, 300))
                         st.image(img, caption=f.name, use_container_width=True)
+                        f.seek(0)  # Reset pointer after PIL reads it
 
                 # Store valid files for sending
                 st.session_state["pending_images"] = valid_files
@@ -232,12 +233,10 @@ else:
             # Build display text
             display_text = clean_input if clean_input else "📷 (Photo sent for analysis)"
 
-            # 1. Show the student's question + images
+            # 1. Build the user message (append AFTER API call to avoid duplication)
             user_msg = {"role": "user", "content": display_text, "avatar": "👨‍🎓"}
             if image_b64_list:
                 user_msg["images"] = image_b64_list
-
-            st.session_state["messages"].append(user_msg)
 
             with st.chat_message("user", avatar="👨‍🎓"):
                 # Show uploaded images in the chat bubble
@@ -354,6 +353,9 @@ else:
                                     mastery = "Mastered ✅" if is_correct else "Struggling 📚"
                                     st.toast(f"📊 Quiz Result: {topic} → {mastery}")
 
+            # Add user message to history AFTER API call (prevents sending it twice)
+            st.session_state["messages"].append(user_msg)
+
             # Build assistant message for chat history
             assistant_content = tutor_reply
             if action in ("quiz", "game") and quiz_data:
@@ -364,10 +366,11 @@ else:
             st.session_state["messages"].append({"role": "assistant", "content": assistant_content, "avatar": "🤖"})
 
             # 3. Silently log the weak topic in the background for the Teacher Panel
+            # Skip if action is quiz/game — log_quiz_result() already logs to ConceptLogs
             topic = response_data.get("topic", "Unknown")
             status = response_data.get("status", "Unknown")
 
-            if topic != "Error":
+            if topic != "Error" and action not in ("quiz", "game"):
                 log_concept(
                     student_id=st.session_state["student_id"],
                     concept_name=topic,

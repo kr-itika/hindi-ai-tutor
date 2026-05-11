@@ -6,6 +6,10 @@ else
     echo "[!] No virtual environment found. Using system Python."
 fi
 
+# Install dependencies if needed
+echo "Checking dependencies..."
+pip install -r requirements.txt --quiet 2>/dev/null
+
 # Ensure Ollama is running in the background
 if ! pgrep -x "ollama" > /dev/null
 then

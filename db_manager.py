@@ -251,5 +251,23 @@ def get_all_students():
     return df
 
 
+def get_quiz_dashboard_data():
+    """Returns all quiz logs joined with student names for the teacher panel."""
+    import pandas as pd
+
+    with sqlite3.connect(DB_NAME) as conn:
+        query = '''
+            SELECT Students.name, QuizLogs.topic, QuizLogs.quiz_type, 
+                   QuizLogs.question, QuizLogs.student_answer, QuizLogs.correct_answer,
+                   CASE WHEN QuizLogs.is_correct = 1 THEN 'Correct ✅' ELSE 'Wrong ❌' END as result,
+                   QuizLogs.timestamp
+            FROM QuizLogs
+            JOIN Students ON QuizLogs.student_id = Students.student_id
+            ORDER BY QuizLogs.timestamp DESC
+        '''
+        df = pd.read_sql_query(query, conn)
+    return df
+
+
 # Always ensure tables exist when this module is imported
 init_db()
