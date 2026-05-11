@@ -62,6 +62,22 @@ def init_db():
             )
         ''')
 
+        # 4. QuizLogs Table (Quiz Performance Tracking)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS QuizLogs (
+                quiz_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                student_id INTEGER,
+                topic TEXT NOT NULL,
+                quiz_type TEXT NOT NULL,
+                question TEXT NOT NULL,
+                student_answer TEXT NOT NULL,
+                correct_answer TEXT NOT NULL,
+                is_correct INTEGER NOT NULL,  -- 1 = correct, 0 = wrong
+                timestamp TEXT NOT NULL,
+                FOREIGN KEY (student_id) REFERENCES Students(student_id)
+            )
+        ''')
+
         # Add password_hash column if upgrading from old schema
         try:
             cursor.execute("ALTER TABLE Students ADD COLUMN password_hash TEXT NOT NULL DEFAULT ''")
@@ -104,7 +120,8 @@ def login_and_update_streak(student_name, password=""):
             cursor.execute('''
                 INSERT INTO Streaks (student_id, last_active_date, current_streak, highest_streak) 
                 VALUES (?, ?, 1, 1)
-            ''', (student_id, today_str))
+            ''', 
+            (student_id, today_str))
             conn.commit()
             logger.info("New student registered: %s (id=%d)", student_name, student_id)
             return student_id, 1
@@ -114,7 +131,7 @@ def login_and_update_streak(student_name, password=""):
             student_id = student_row[0]
             cursor.execute(
                 "SELECT last_active_date, current_streak, highest_streak FROM Streaks WHERE student_id = ?",
-                (student_id,),
+                (student_id,), #for sqlite3, The parameters argument must be of type tuple, list or dict that's why there is a comma which identifies it as a tuple even if it has only one data_item.
             )
             streak_data = cursor.fetchone()
 
@@ -154,6 +171,39 @@ def log_concept(student_id, concept_name, status):
 
         conn.commit()
     logger.info("Logged concept: student=%d, topic=%s, status=%s", student_id, concept_name, status)
+
+
+def log_quiz_result(student_id, topic, quiz_type, question, student_answer, correct_answer, is_correct):
+    """Logs a quiz attempt and updates mastery status based on the result.
+
+    Args:
+        student_id: The student's database ID.
+        topic: The topic being quizzed.
+        quiz_type: Type of quiz (mcq, spot_the_mistake, fill_blank).
+        question: The quiz question text.
+        student_answer: What the student chose.
+        correct_answer: The correct answer.
+        is_correct: Boolean — True if student got it right.
+    """
+    with sqlite3.connect(DB_NAME) as conn:
+        cursor = conn.cursor()
+        timestamp = datetime.now().isoformat()
+
+        # Log the quiz attempt
+        cursor.execute('''
+            INSERT INTO QuizLogs (student_id, topic, quiz_type, question, student_answer, correct_answer, is_correct, timestamp)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (student_id, topic, quiz_type, question, student_answer, correct_answer, int(is_correct), timestamp))
+
+        # Update mastery in ConceptLogs based on quiz result
+        new_status = "Mastered" if is_correct else "Struggling"
+        cursor.execute('''
+            INSERT INTO ConceptLogs (student_id, concept_name, status, timestamp)
+            VALUES (?, ?, ?, ?)
+        ''', (student_id, topic, new_status, timestamp))
+
+        conn.commit()
+    logger.info("Quiz logged: student=%d, topic=%s, correct=%s", student_id, topic, is_correct)
 
 
 def get_student_progress(student_id):
@@ -202,4 +252,4 @@ def get_all_students():
 
 
 # Always ensure tables exist when this module is imported
-init_db()
+init_db()
