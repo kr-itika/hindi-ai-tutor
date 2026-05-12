@@ -4,6 +4,8 @@ import logging
 import os
 from datetime import date, datetime
 
+import pandas as pd
+
 logger = logging.getLogger(__name__)
 
 DB_NAME = "students.db"
@@ -62,6 +64,22 @@ def init_db():
             )
         ''')
 
+        # 4. QuizLogs Table (Quiz Performance Tracking)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS QuizLogs (
+                quiz_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                student_id INTEGER,
+                topic TEXT NOT NULL,
+                quiz_type TEXT NOT NULL,
+                question TEXT NOT NULL,
+                student_answer TEXT NOT NULL,
+                correct_answer TEXT NOT NULL,
+                is_correct INTEGER NOT NULL,  -- 1 = correct, 0 = wrong
+                timestamp TEXT NOT NULL,
+                FOREIGN KEY (student_id) REFERENCES Students(student_id)
+            )
+        ''')
+
         # Add password_hash column if upgrading from old schema
         try:
             cursor.execute("ALTER TABLE Students ADD COLUMN password_hash TEXT NOT NULL DEFAULT ''")
@@ -102,7 +120,7 @@ def login_and_update_streak(student_name, password=""):
             student_id = cursor.lastrowid
 
             cursor.execute('''
-                INSERT INTO Streaks (student_id, last_active_date, current_streak, highest_streak) 
+                INSERT INTO Streaks (student_id, last_active_date, current_streak, highest_streak)
                 VALUES (?, ?, 1, 1)
             ''', (student_id, today_str))
             conn.commit()
@@ -131,7 +149,7 @@ def login_and_update_streak(student_name, password=""):
                 current_streak = 1
 
             cursor.execute('''
-                UPDATE Streaks 
+                UPDATE Streaks
                 SET last_active_date = ?, current_streak = ?, highest_streak = ?
                 WHERE student_id = ?
             ''', (today_str, current_streak, highest_streak, student_id))
@@ -156,6 +174,39 @@ def log_concept(student_id, concept_name, status):
     logger.info("Logged concept: student=%d, topic=%s, status=%s", student_id, concept_name, status)
 
 
+def log_quiz_result(student_id, topic, quiz_type, question, student_answer, correct_answer, is_correct):
+    """Logs a quiz attempt and updates mastery status based on the result.
+
+    Args:
+        student_id: The student's database ID.
+        topic: The topic being quizzed.
+        quiz_type: Type of quiz (mcq, spot_the_mistake, fill_blank).
+        question: The quiz question text.
+        student_answer: What the student chose.
+        correct_answer: The correct answer.
+        is_correct: Boolean — True if student got it right.
+    """
+    with sqlite3.connect(DB_NAME) as conn:
+        cursor = conn.cursor()
+        timestamp = datetime.now().isoformat()
+
+        # Log the quiz attempt
+        cursor.execute('''
+            INSERT INTO QuizLogs (student_id, topic, quiz_type, question, student_answer, correct_answer, is_correct, timestamp)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (student_id, topic, quiz_type, question, student_answer, correct_answer, int(is_correct), timestamp))
+
+        # Update mastery in ConceptLogs based on quiz result
+        new_status = "Mastered" if is_correct else "Struggling"
+        cursor.execute('''
+            INSERT INTO ConceptLogs (student_id, concept_name, status, timestamp)
+            VALUES (?, ?, ?, ?)
+        ''', (student_id, topic, new_status, timestamp))
+
+        conn.commit()
+    logger.info("Quiz logged: student=%d, topic=%s, correct=%s", student_id, topic, is_correct)
+
+
 def get_student_progress(student_id):
     """Returns mastered/learning/struggling counts for a student."""
     with sqlite3.connect(DB_NAME) as conn:
@@ -172,11 +223,9 @@ def get_student_progress(student_id):
 
 def get_teacher_dashboard_data():
     """Returns all concept logs joined with student names for the teacher panel."""
-    import pandas as pd
-
     with sqlite3.connect(DB_NAME) as conn:
         query = '''
-            SELECT Students.name, ConceptLogs.concept_name, ConceptLogs.status, ConceptLogs.timestamp 
+            SELECT Students.name, ConceptLogs.concept_name, ConceptLogs.status, ConceptLogs.timestamp
             FROM ConceptLogs
             JOIN Students ON ConceptLogs.student_id = Students.student_id
             ORDER BY ConceptLogs.timestamp DESC
@@ -187,8 +236,6 @@ def get_teacher_dashboard_data():
 
 def get_all_students():
     """Returns a list of all students with their streak info."""
-    import pandas as pd
-
     with sqlite3.connect(DB_NAME) as conn:
         query = '''
             SELECT Students.name, Students.join_date,
@@ -201,5 +248,21 @@ def get_all_students():
     return df
 
 
+def get_quiz_dashboard_data():
+    """Returns all quiz logs joined with student names for the teacher panel."""
+    with sqlite3.connect(DB_NAME) as conn:
+        query = '''
+            SELECT Students.name, QuizLogs.topic, QuizLogs.quiz_type,
+                   QuizLogs.question, QuizLogs.student_answer, QuizLogs.correct_answer,
+                   CASE WHEN QuizLogs.is_correct = 1 THEN 'Correct ✅' ELSE 'Wrong ❌' END as result,
+                   QuizLogs.timestamp
+            FROM QuizLogs
+            JOIN Students ON QuizLogs.student_id = Students.student_id
+            ORDER BY QuizLogs.timestamp DESC
+        '''
+        df = pd.read_sql_query(query, conn)
+    return df
+
+
 # Always ensure tables exist when this module is imported
-init_db()
+init_db()
