@@ -9,6 +9,37 @@ MAX_IMAGES = 5
 MAX_FILE_SIZE_MB = 10
 ALLOWED_TYPES = ["png", "jpg", "jpeg", "webp"]
 
+def render_tts_button(text):
+    """Renders a small play button that uses the browser's TTS engine to read Hindi text."""
+    # Escape quotes and newlines so they don't break the JS string
+    safe_text = text.replace("'", "\\'").replace('"', '\\"').replace('\n', ' ')
+    html = f"""
+    <div style="margin-top: 5px;">
+        <button onclick="speakText()" style="
+            background-color: #f0f2f6; border: 1px solid #ccc; border-radius: 15px;
+            padding: 4px 12px; cursor: pointer; font-size: 14px; color: #333;
+            display: inline-flex; align-items: center; gap: 6px; transition: background 0.2s;
+        " onmouseover="this.style.background='#e0e2e6'" onmouseout="this.style.background='#f0f2f6'">
+            🔊 Suno
+        </button>
+    </div>
+    <script>
+    function speakText() {{
+        if ('speechSynthesis' in window) {{
+            window.speechSynthesis.cancel(); // Stop current speech if any
+            const utterance = new SpeechSynthesisUtterance('{safe_text}');
+            utterance.lang = 'hi-IN';
+            window.speechSynthesis.speak(utterance);
+        }} else {{
+            alert("Sorry, aapka browser Text-to-Speech support nahi karta.");
+        }}
+    }}
+    </script>
+    """
+    st.components.v1.html(html, height=45)
+
+
+
 st.set_page_config(
     page_title="Hindi AI Tutor 🌾",
     page_icon="🌾",
@@ -105,6 +136,9 @@ else:
                             use_container_width=True,
                         )
             st.markdown(msg["content"])
+            # Add play button to past assistant messages
+            if msg["role"] == "assistant":
+                render_tts_button(msg["content"])
 
     # --- Voice Input (Browser Speech API) ---
     voice_component = """
@@ -278,6 +312,7 @@ else:
 
                 # --- Tutor Response (always shown) ---
                 st.markdown(tutor_reply)
+                render_tts_button(tutor_reply)
 
                 # --- Action-Specific UI ---
                 if action == "explain":
