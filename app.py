@@ -1,9 +1,12 @@
 import streamlit as st
 import base64
 import io
+import pandas as pd
+import altair as alt
+from datetime import date, timedelta
 from PIL import Image
 from gemini_api import get_response
-from db_manager import login_and_update_streak, log_concept, get_student_progress, log_quiz_result, get_due_reviews
+from db_manager import login_and_update_streak, log_concept, get_student_progress, log_quiz_result, get_due_reviews, get_calendar_data
 
 def t(en_text, hi_text):
     return en_text if st.session_state.get("language", "Hindi") == "English" else hi_text
@@ -58,6 +61,8 @@ if "language" not in st.session_state:
     st.session_state["language"] = "Hindi"
 if "mode" not in st.session_state:
     st.session_state["mode"] = "Fast Result"
+if "current_page" not in st.session_state:
+    st.session_state["current_page"] = "chat"
 
 col1, col2, col3 = st.columns([2, 1, 1])
 with col1:
@@ -134,6 +139,17 @@ else:
             st.subheader(t("📊 My Progress", "📊 My Progress"))
             st.bar_chart(progress)
 
+        # Navigation
+        st.divider()
+        if st.session_state["current_page"] == "chat":
+            if st.button(t("📅 View Learning Calendar", "📅 Calendar Dekhein"), use_container_width=True):
+                st.session_state["current_page"] = "calendar"
+                st.rerun()
+        else:
+            if st.button(t("💬 Back to Chat", "💬 Chat Par Wapas Jayein"), use_container_width=True):
+                st.session_state["current_page"] = "chat"
+                st.rerun()
+
         st.divider()
         if st.button(t("🚪 Logout", "🚪 Logout")):
             st.session_state.clear()
@@ -141,6 +157,82 @@ else:
 
     # --- MAIN TUTOR INTERFACE (Chat UI) ---
     st.success(t(f"Hello, {st.session_state['student_name']}! 🙏 | 🔥 Streak: {st.session_state['streak']} Days", f"Namaste, {st.session_state['student_name']}! 🙏 | 🔥 Streak: {st.session_state['streak']} Days"))
+
+    if st.session_state.get("current_page") == "calendar":
+        st.header(t("📅 My Learning Journey", "📅 Meri Learning Journey"))
+        st.markdown(t("Hover over the dates to see the exact topics you studied and what's coming up next!", "Dates par hover karein apne topics dekhne ke liye!"))
+        
+        past_data, future_data = get_calendar_data(st.session_state["student_id"])
+        
+        records = []
+        all_dates = set(past_data.keys()).union(set(future_data.keys()))
+        
+        for date_str in all_dates:
+            color = "#ebedf0" # default gray
+            tooltip_lines = []
+            
+            if date_str in past_data:
+                day_concepts = past_data[date_str]
+                statuses = day_concepts.values()
+                
+                # Option 1 Priority Logic
+                if "Struggling" in statuses:
+                    color = "#f85149" # Red
+                elif "Learning" in statuses:
+                    color = "#d29922" # Yellow/Orange
+                elif "Mastered" in statuses:
+                    color = "#2ea043" # Green
+                
+                struggling = [c for c, s in day_concepts.items() if s == "Struggling"]
+                learning = [c for c, s in day_concepts.items() if s == "Learning"]
+                mastered = [c for c, s in day_concepts.items() if s == "Mastered"]
+                
+                if struggling: tooltip_lines.append(f"🚨 Struggling: {', '.join(struggling)}")
+                if learning: tooltip_lines.append(f"🟡 Learning: {', '.join(learning)}")
+                if mastered: tooltip_lines.append(f"✅ Mastered: {', '.join(mastered)}")
+                
+            if date_str in future_data:
+                if date_str not in past_data:
+                    color = "#58a6ff" # Blue
+                due = future_data[date_str]
+                tooltip_lines.append(f"📅 Due for Review: {', '.join(due)}")
+                
+            records.append({
+                "Date": date_str,
+                "Color": color,
+                "Details": " | ".join(tooltip_lines)
+            })
+            
+        df = pd.DataFrame(records)
+        
+        if df.empty:
+            st.info(t("No learning data yet! Start chatting with the tutor.", "Abhi tak koi data nahi hai! Tutor se baat shuru karein."))
+        else:
+            df['Date'] = pd.to_datetime(df['Date'])
+            
+            chart = alt.Chart(df).mark_rect(rx=4, ry=4, stroke='white', strokeWidth=2).encode(
+                x=alt.X('week(Date):O', title='Week of Year', axis=alt.Axis(labels=False, ticks=False)),
+                y=alt.Y('day(Date):O', title='Day', sort=['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']),
+                color=alt.Color('Color:N', scale=alt.Scale(None)),
+                tooltip=['Date:T', 'Details:N']
+            ).properties(
+                height=250
+            ).configure_view(
+                stroke=None
+            )
+            
+            st.altair_chart(chart, use_container_width=True)
+            
+            # Legend
+            st.markdown("""
+            **Legend:** 
+            <span style='color:#f85149'>■</span> Struggling &nbsp;
+            <span style='color:#d29922'>■</span> Learning &nbsp;
+            <span style='color:#2ea043'>■</span> Mastered &nbsp;
+            <span style='color:#58a6ff'>■</span> Future Review
+            """, unsafe_allow_html=True)
+            
+        st.stop() # Prevents the chat UI from rendering
 
     # Display chat history
     for msg in st.session_state.get("messages", []):

@@ -325,6 +325,53 @@ def get_quiz_dashboard_data():
         df = pd.read_sql_query(query, conn)
     return df
 
+def get_calendar_data(student_id):
+    """Returns past daily activity and future revision dates for the calendar heatmap.
+    
+    Returns:
+        past_data: dict mapping date_string -> {concept_name: final_status_for_day}
+        future_data: dict mapping date_string -> [list of concepts due]
+    """
+    from collections import defaultdict
+    with sqlite3.connect(DB_NAME) as conn:
+        cursor = conn.cursor()
+        
+        # 1. Past Data: Get the final status of each concept studied on each specific day
+        cursor.execute('''
+            SELECT date(timestamp) as log_date, concept_name, status
+            FROM ConceptLogs
+            WHERE student_id = ?
+            ORDER BY timestamp ASC
+        ''', (student_id,))
+        
+        daily_concepts = defaultdict(dict)
+        for row in cursor.fetchall():
+            d = row[0]
+            c = row[1]
+            s = row[2]
+            daily_concepts[d][c] = s
+            
+        # 2. Future Data: Get all active future review dates
+        # Use ROW_NUMBER to get the most recent log per concept
+        cursor.execute('''
+            SELECT concept_name, next_review_date
+            FROM (
+                SELECT concept_name, next_review_date,
+                       ROW_NUMBER() OVER(PARTITION BY concept_name ORDER BY timestamp DESC) as rn
+                FROM ConceptLogs
+                WHERE student_id = ?
+            ) WHERE rn = 1 AND next_review_date IS NOT NULL AND next_review_date > date('now')
+        ''', (student_id,))
+        
+        future_reviews = defaultdict(list)
+        for row in cursor.fetchall():
+            concept = row[0]
+            # Handle potential time parts in next_review_date if any
+            rev_date = row[1][:10] 
+            future_reviews[rev_date].append(concept)
+            
+        return dict(daily_concepts), dict(future_reviews)
+
 
 # Always ensure tables exist when this module is imported
 init_db()
