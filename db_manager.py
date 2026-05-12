@@ -2,7 +2,7 @@ import sqlite3
 import hashlib
 import logging
 import os
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +58,8 @@ def init_db():
                 concept_name TEXT NOT NULL,
                 status TEXT NOT NULL,  -- e.g., 'Mastered', 'Struggling', 'Learning'
                 timestamp TEXT NOT NULL,
+                next_review_date TEXT,
+                interval_days INTEGER DEFAULT 0,
                 FOREIGN KEY (student_id) REFERENCES Students(student_id)
             )
         ''')
@@ -84,6 +86,14 @@ def init_db():
             logger.info("Added password_hash column to Students table.")
         except sqlite3.OperationalError:
             pass  # Column already exists
+
+        # Add next_review_date and interval_days if upgrading from old schema
+        try:
+            cursor.execute("ALTER TABLE ConceptLogs ADD COLUMN next_review_date TEXT")
+            cursor.execute("ALTER TABLE ConceptLogs ADD COLUMN interval_days INTEGER DEFAULT 0")
+            logger.info("Added next_review_date and interval_days columns to ConceptLogs table.")
+        except sqlite3.OperationalError:
+            pass  # Columns already exist
 
         conn.commit()
     logger.info("Database initialized successfully.")
@@ -158,19 +168,43 @@ def login_and_update_streak(student_name, password=""):
             return student_id, current_streak
 
 
+def _calculate_next_interval(status, prev_interval=0):
+    if status == "Struggling" or status == "Learning":
+        return 1
+    elif status == "Mastered":
+        if prev_interval == 0: return 3
+        elif prev_interval == 3: return 7
+        elif prev_interval == 7: return 14
+        else: return 30
+    return 1
+
+def _get_latest_interval(cursor, student_id, concept_name):
+    cursor.execute('''
+        SELECT interval_days FROM ConceptLogs 
+        WHERE student_id = ? AND concept_name = ? 
+        ORDER BY timestamp DESC LIMIT 1
+    ''', (student_id, concept_name))
+    row = cursor.fetchone()
+    return row[0] if row and row[0] is not None else 0
+
+
 def log_concept(student_id, concept_name, status):
     """Saves a record of the topic the student is learning."""
     with sqlite3.connect(DB_NAME) as conn:
         cursor = conn.cursor()
         timestamp = datetime.now().isoformat()
+        
+        prev_interval = _get_latest_interval(cursor, student_id, concept_name)
+        new_interval = _calculate_next_interval(status, prev_interval)
+        next_review_date = (date.today() + timedelta(days=new_interval)).isoformat()
 
         cursor.execute('''
-            INSERT INTO ConceptLogs (student_id, concept_name, status, timestamp)
-            VALUES (?, ?, ?, ?)
-        ''', (student_id, concept_name, status, timestamp))
+            INSERT INTO ConceptLogs (student_id, concept_name, status, timestamp, next_review_date, interval_days)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (student_id, concept_name, status, timestamp, next_review_date, new_interval))
 
         conn.commit()
-    logger.info("Logged concept: student=%d, topic=%s, status=%s", student_id, concept_name, status)
+    logger.info("Logged concept: student=%d, topic=%s, status=%s, next_review=%s", student_id, concept_name, status, next_review_date)
 
 
 def log_quiz_result(student_id, topic, quiz_type, question, student_answer, correct_answer, is_correct):
@@ -197,10 +231,15 @@ def log_quiz_result(student_id, topic, quiz_type, question, student_answer, corr
 
         # Update mastery in ConceptLogs based on quiz result
         new_status = "Mastered" if is_correct else "Struggling"
+        
+        prev_interval = _get_latest_interval(cursor, student_id, topic)
+        new_interval = _calculate_next_interval(new_status, prev_interval)
+        next_review_date = (date.today() + timedelta(days=new_interval)).isoformat()
+        
         cursor.execute('''
-            INSERT INTO ConceptLogs (student_id, concept_name, status, timestamp)
-            VALUES (?, ?, ?, ?)
-        ''', (student_id, topic, new_status, timestamp))
+            INSERT INTO ConceptLogs (student_id, concept_name, status, timestamp, next_review_date, interval_days)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (student_id, topic, new_status, timestamp, next_review_date, new_interval))
 
         conn.commit()
     logger.info("Quiz logged: student=%d, topic=%s, correct=%s", student_id, topic, is_correct)
@@ -250,6 +289,24 @@ def get_all_students():
         df = pd.read_sql_query(query, conn)
     return df
 
+
+def get_due_reviews(student_id):
+    """Return concepts that are due for revision today or overdue."""
+    today_str = date.today().isoformat()
+    with sqlite3.connect(DB_NAME) as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            WITH LatestLogs AS (
+                SELECT concept_name, status, next_review_date,
+                       ROW_NUMBER() OVER(PARTITION BY concept_name ORDER BY timestamp DESC) as rn
+                FROM ConceptLogs
+                WHERE student_id = ?
+            )
+            SELECT concept_name, next_review_date
+            FROM LatestLogs
+            WHERE rn = 1 AND (next_review_date IS NULL OR next_review_date <= ?)
+        ''', (student_id, today_str))
+        return cursor.fetchall()
 
 def get_quiz_dashboard_data():
     """Returns all quiz logs joined with student names for the teacher panel."""

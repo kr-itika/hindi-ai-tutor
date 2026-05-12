@@ -5,7 +5,88 @@ import json
 OLLAMA_URL = "http://localhost:11434/api/chat"
 MODEL_NAME = "gemma4:e4b"
 
-SYSTEM_PROMPT = """Tum ek ADAPTIVE Hindi tutor ho jo rural India ke students ko simple Hindi mein padhata hai.
+def get_system_prompt(language="Hindi", mode="Fast Result"):
+    
+    think_rule = ""
+    thought_process_json = ""
+    if mode == "Long Think":
+        think_rule = "- LONG THINK MODE: You must think step-by-step in detail about the student's problem, misconceptions, and your strategy BEFORE writing the final response. Write your reasoning inside the 'thought_process' field.\n"
+        thought_process_json = '    "thought_process": "Your detailed step-by-step reasoning here",\n'
+
+    if language == "English":
+        return f"""You are an ADAPTIVE English tutor who teaches rural India's students in simple English.
+You are not just a chatbot — you are a SMART TUTOR AGENT who DECIDEs what to do next after every message.
+
+=== YOUR ACTIONS (Choose one action in every response) ===
+
+1. "explain" → Explain the concept with a VILLAGE LIFE ANALOGY.
+   Example: To explain Fractions say "Like sharing a roti among 4 people in the village, each gets 1/4."
+
+2. "quiz" → Give the student a quick question to test understanding.
+   When giving a quiz, you must provide question, options, and correct_answer in quiz_data.
+
+3. "revise" → Re-explain a weak topic (when the student is struggling).
+   Remember previous mistakes and explain the topic again in an easier way.
+
+4. "game" → Play a fun learning game (word puzzle, fill-in-the-blank, story-based question).
+   The game should be engaging and topic-related. Provide game data in quiz_data.
+
+5. "clarify" → If the student's question is unclear, politely ask what they mean.
+   Do not guess — understand first, then answer.
+
+=== DECISION MAKING RULES ===
+{think_rule}- Choose the BEST action based on the student's message, past conversation, and performance.
+- If student asks a new topic → "explain" (with village analogy)
+- If student answers correctly → "quiz" or "game" (increase challenge)
+- If student answers wrong repeatedly → "revise" (explain again differently)
+- If student's message is unclear → "clarify"
+- After every 3-4 explanations, give a "quiz" or "game" — do not let it get boring!
+- Tell what to do next in "next_action_suggestion" (optional but helpful).
+- SPACED REPETITION: At the beginning of conversation, I will give you list of weak topics and due revisions. Prioritize 'revise' action on them before teaching new topics.
+
+=== IMAGE ANALYSIS RULES (if student sent a photo) ===
+- 📖 Textbook page: Read the content, understand it, and explain it to the student in simple English.
+- ✍️ Handwritten doubt: Read the handwriting carefully, identify the question, and answer it.
+- 📊 Diagram/Chart: Describe the diagram and explain its meaning.
+- 🖥️ Blackboard photo: Read what is written and teach that topic.
+- If the image is unclear, use the "clarify" action and ask for a better photo.
+
+=== QUIZ & GAME RULES ===
+When action is "quiz" or "game", you MUST provide quiz_data with these fields:
+- quiz_type: Choose one → "mcq" (multiple choice), "spot_the_mistake" (What is wrong?), or "fill_blank" (fill in the blank)
+- question: The quiz question in simple English
+- options: 4 answer choices (A, B, C, D)
+- correct_answer: The EXACT text of the correct option (must match one of the options exactly)
+- explanation: SHORT explanation in English of WHY this is the correct answer (2-3 lines max)
+
+Quiz Type Guidelines:
+- "mcq": Normal multiple choice question to test understanding
+- "spot_the_mistake": Show a statement with a deliberate mistake. Ask "What is wrong?" Options are possible corrections.
+  Example: "2/4 + 1/4 = 4/8" → Student must spot this is wrong (should be 3/4)
+- "fill_blank": Show a sentence with ___. Options fill the blank.
+
+After explaining a topic (2-3 times), automatically switch to quiz to test the student!
+
+=== RESPONSE FORMAT ===
+IMPORTANT: You must respond ONLY with a valid JSON object. No markdown, no code fences.
+{{
+{thought_process_json}    "action": "explain | quiz | revise | game | clarify",
+    "tutor_response": "Your friendly English response here (always use simple English)",
+    "topic": "The core concept in 1-2 words (e.g., Fractions, Photosynthesis)",
+    "status": "Choose one: Struggling, Learning, or Mastered",
+    "next_action_suggestion": "What to do next: explain, quiz, revise, game, or clarify (optional)",
+    "quiz_data": {{
+        "quiz_type": "mcq | spot_the_mistake | fill_blank",
+        "question": "Quiz question in English",
+        "options": ["Option A", "Option B", "Option C", "Option D"],
+        "correct_answer": "The EXACT text of correct option",
+        "explanation": "Short explanation in English of why this answer is correct"
+    }}
+}}
+
+NOTE: quiz_data is ONLY required when action is "quiz" or "game". For other actions, omit it or set to null."""
+    else:
+        return f"""Tum ek ADAPTIVE Hindi tutor ho jo rural India ke students ko simple Hindi mein padhata hai.
 Tum sirf ek chatbot nahi ho — tum ek SMART TUTOR AGENT ho jo har message ke baad DECIDE karta hai ki aage kya karna chahiye.
 
 === TERE ACTIONS (Har response mein ek action choose karo) ===
@@ -26,13 +107,14 @@ Tum sirf ek chatbot nahi ho — tum ek SMART TUTOR AGENT ho jo har message ke ba
    Mat guess karo — pehle samjho, phir jawab do.
 
 === DECISION MAKING RULES ===
-- Student ka message, pichli baatcheet, aur performance dekh ke BEST action choose karo.
+{think_rule}- Student ka message, pichli baatcheet, aur performance dekh ke BEST action choose karo.
 - Agar student ne naya topic pucha → "explain" (with village analogy)
 - Agar student ne sahi jawab diya → "quiz" ya "game" (challenge badhao)
 - Agar student galat jawab de raha hai baar baar → "revise" (dobara samjhao, alag tarike se)
 - Agar student ka message unclear hai → "clarify"
 - Har 3-4 explanations ke baad ek "quiz" ya "game" do — boring mat hone do!
 - "next_action_suggestion" mein batao ki aage kya karna chahiye (optional but helpful).
+- SPACED REPETITION: At the beginning of conversation, I will give you list of weak topics and due revisions. Prioritize 'revise' action on them before teaching new topics.
 
 === IMAGE ANALYSIS RULES (agar student ne photo bheji hai) ===
 - 📖 Textbook page: Content padho, samjho, aur student ko simple Hindi mein samjhao.
@@ -59,31 +141,33 @@ After explaining a topic (2-3 times), automatically switch to quiz to test the s
 
 === RESPONSE FORMAT ===
 IMPORTANT: You must respond ONLY with a valid JSON object. No markdown, no code fences.
-{
-    "action": "explain | quiz | revise | game | clarify",
+{{
+{thought_process_json}    "action": "explain | quiz | revise | game | clarify",
     "tutor_response": "Your friendly Hindi response here (always use simple Hindi)",
     "topic": "The core concept in 1-2 words (e.g., Fractions, Photosynthesis)",
     "status": "Choose one: Struggling, Learning, or Mastered",
     "next_action_suggestion": "What to do next: explain, quiz, revise, game, or clarify (optional)",
-    "quiz_data": {
+    "quiz_data": {{
         "quiz_type": "mcq | spot_the_mistake | fill_blank",
         "question": "Quiz question in Hindi",
         "options": ["Option A", "Option B", "Option C", "Option D"],
         "correct_answer": "The EXACT text of correct option",
         "explanation": "Short explanation in Hindi of why this answer is correct"
-    }
-}
+    }}
+}}
 
 NOTE: quiz_data is ONLY required when action is "quiz" or "game". For other actions, omit it or set to null."""
 
 
-def get_response(user_input, chat_history=None, images=None):
+def get_response(user_input, chat_history=None, images=None, weak_topics=None, language="Hindi", mode="Fast Result"):
     """Get a response from the AI tutor with conversation history and optional images.
 
     Args:
         user_input: The student's text question.
         chat_history: List of previous messages [{"role": "user"/"assistant", "content": "..."}].
         images: Optional list of base64-encoded image strings to send for vision analysis.
+        weak_topics: Optional string listing topics the student needs to revise today.
+        language: The preferred language ("Hindi" or "English").
     """
 
     # Build the messages array for /api/chat
@@ -92,7 +176,7 @@ def get_response(user_input, chat_history=None, images=None):
     # System message with tutor instructions
     messages.append({
         "role": "system",
-        "content": SYSTEM_PROMPT
+        "content": get_system_prompt(language, mode)
     })
 
     # Include previous conversation turns
@@ -104,12 +188,29 @@ def get_response(user_input, chat_history=None, images=None):
                 messages.append({"role": "assistant", "content": msg["content"]})
 
     # Build the current user message
+    # Inject weak topics if they exist and this is likely the first or a general message
+    weak_topic_context = ""
+    if weak_topics:
+        weak_topic_context = f"\n\n[SYSTEM NOTE - SPACED REPETITION: Student is weak at these topics: {weak_topics}. Please prioritize revising these topics by using action='revise'!]\n"
+
+    # Set up localized strings based on language
+    if language == "English":
+        prefix_msg = "Student's message: "
+        json_req = "Choose your best action and reply in JSON:"
+        photo_with_q = "The student sent this photo along with their question.\n\nStudent's question: "
+        photo_without_q = "The student sent this photo without a question. Analyze the photo and explain it."
+    else:
+        prefix_msg = "Student ka message: "
+        json_req = "Apna best action choose karo aur JSON mein jawab do:"
+        photo_with_q = "Student ne ye photo bheji hai apne question ke saath.\n\nStudent ka question: "
+        photo_without_q = "Student ne ye photo bheji hai bina kisi question ke. Photo ko analyse karo aur samjhao."
+
     # If images are present, add context about them in the text prompt
     if images:
         if user_input:
-            current_content = f"Student ne ye photo bheji hai apne question ke saath.\n\nStudent ka question: {user_input}\n\nJSON mein jawab do:"
+            current_content = f"{photo_with_q}{user_input}{weak_topic_context}\n\n{json_req}"
         else:
-            current_content = "Student ne ye photo bheji hai bina kisi question ke. Photo ko analyse karo aur samjhao.\n\nJSON mein jawab do:"
+            current_content = f"{photo_without_q}{weak_topic_context}\n\n{json_req}"
 
         current_message = {
             "role": "user",
@@ -119,7 +220,7 @@ def get_response(user_input, chat_history=None, images=None):
     else:
         current_message = {
             "role": "user",
-            "content": f"Student ka message: {user_input}\n\nApna best action choose karo aur JSON mein jawab do:"
+            "content": f"{prefix_msg}{user_input}{weak_topic_context}\n\n{json_req}"
         }
 
     messages.append(current_message)
@@ -158,10 +259,14 @@ def get_response(user_input, chat_history=None, images=None):
         return parsed_data
 
     except requests.exceptions.ConnectionError:
-        return {"action": "clarify", "tutor_response": "⚠️ Ollama server se connect nahi ho paa raha.", "topic": "Error", "status": "Error"}
+        error_msg = "⚠️ Unable to connect to Ollama server." if language == "English" else "⚠️ Ollama server se connect nahi ho paa raha."
+        return {"action": "clarify", "tutor_response": error_msg, "topic": "Error", "status": "Error"}
     except requests.exceptions.Timeout:
-        return {"action": "clarify", "tutor_response": "⚠️ Server ne bahut der laga di. Photo analyse mein time lagta hai — phir se try karo.", "topic": "Error", "status": "Error"}
+        error_msg = "⚠️ Server took too long. Photo analysis takes time — please try again." if language == "English" else "⚠️ Server ne bahut der laga di. Photo analyse mein time lagta hai — phir se try karo."
+        return {"action": "clarify", "tutor_response": error_msg, "topic": "Error", "status": "Error"}
     except json.JSONDecodeError:
-        return {"action": "clarify", "tutor_response": "⚠️ Model ne galat format diya. Phir se try karo.", "topic": "Error", "status": "Error"}
+        error_msg = "⚠️ Model returned invalid format. Please try again." if language == "English" else "⚠️ Model ne galat format diya. Phir se try karo."
+        return {"action": "clarify", "tutor_response": error_msg, "topic": "Error", "status": "Error"}
     except Exception as e:
-        return {"action": "clarify", "tutor_response": f"⚠️ Kuch gadbad ho gayi: {e}", "topic": "Error", "status": "Error"}
+        error_msg = f"⚠️ Something went wrong: {e}" if language == "English" else f"⚠️ Kuch gadbad ho gayi: {e}"
+        return {"action": "clarify", "tutor_response": error_msg, "topic": "Error", "status": "Error"}
