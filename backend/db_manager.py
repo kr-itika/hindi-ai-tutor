@@ -345,6 +345,3 @@ def get_calendar_data(student_id):
             
         return dict(daily_concepts), dict(future_reviews)
 
-
-# Always ensure tables exist when this module is imported
-init_db()

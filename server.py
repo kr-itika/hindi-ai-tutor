@@ -6,15 +6,18 @@ Provides API endpoints for auth, progress tracking, and calendar data.
 
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
-from gemini_api import get_response
-from db_manager import (
+from backend.gemini_api import get_response
+from backend.db_manager import (
     init_db, login_and_update_streak, log_concept,
     log_quiz_result, get_student_progress, get_due_reviews, get_calendar_data
 )
 import os
 import sqlite3
 
-app = Flask(__name__, static_folder=".", static_url_path="")
+BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+FRONTEND_DIR = os.path.join(BASE_DIR, "frontend")
+
+app = Flask(__name__, static_folder=None)
 CORS(app)
 
 # Ensure DB is ready
@@ -23,11 +26,11 @@ init_db()
 # ─── Static file serving ───
 @app.route("/")
 def index():
-    return send_from_directory(".", "login.html")
+    return send_from_directory(FRONTEND_DIR, "login.html")
 
 @app.route("/<path:path>")
 def static_files(path):
-    return send_from_directory(".", path)
+    return send_from_directory(FRONTEND_DIR, path)
 
 # ─── Auth API ───
 @app.route("/api/login", methods=["POST"])
