@@ -7,6 +7,7 @@ from datetime import date, timedelta
 from PIL import Image
 from gemini_api import get_response
 from db_manager import login_and_update_streak, log_concept, log_quiz_result, get_due_reviews, get_calendar_data
+from chat_component import inject_chat_css, render_chat_input_box, clear_chat_input, get_api_mode
 
 def t(en_text, hi_text):
     return en_text if st.session_state.get("language", "Hindi") == "English" else hi_text
@@ -130,15 +131,16 @@ st.set_page_config(
 if "language" not in st.session_state:
     st.session_state["language"] = "Hindi"
 if "mode" not in st.session_state:
-    st.session_state["mode"] = "Fast Result"
+    st.session_state["mode"] = "Fast"
 
-col1, col2, col3 = st.columns([2, 1, 1])
+# Inject Claude-style chat CSS
+inject_chat_css()
+
+col1, col2 = st.columns([3, 1])
 with col1:
     st.title(t("🌾 AI Tutor", "🌾 Hindi AI Tutor"))
 with col2:
     st.selectbox("🌐 Language / भाषा", ["Hindi", "English"], key="language")
-with col3:
-    st.selectbox(t("⚡ Mode", "⚡ Mode"), ["Fast Result", "Long Think"], key="mode")
 
 # --- LOGIN SYSTEM ---
 # We check if the user is already stored in the session state.
@@ -359,286 +361,129 @@ else:
                 if msg["role"] == "assistant":
                     render_tts_button(clean_latex(msg["content"]))
 
-    # --- Voice Input (Browser Speech API) ---
-    # Initialize voice text in session state
-    if "voice_text" not in st.session_state:
-        st.session_state["voice_text"] = ""
+    # --- Claude-style Chat Input ---
+    user_input, uploaded_images, should_send = render_chat_input_box()
 
-    btn_voice = t("🎤 Speak (Voice Input)", "🎤 Bolo (Voice Input)")
-    err_voice = t("Browser does not support voice input", "Browser mein voice support nahi hai")
-    msg_listening = t("🔴 Listening...", "🔴 Sun raha hoon...")
-    msg_done = t("✅ Got it! Text copied below.", "✅ Mil gaya! Text niche copy ho gaya.")
-    lang_voice = "en-US" if st.session_state.get("language", "Hindi") == "English" else "hi-IN"
-
-    voice_component = f"""
-    <div style="margin-bottom: 10px;">
-        <button id="voiceBtn" onclick="startVoice()" style="
-            background: linear-gradient(135deg, #FF9933, #FF6600);
-            color: white; border: none; padding: 10px 20px;
-            border-radius: 25px; cursor: pointer; font-size: 16px;
-            box-shadow: 0 2px 8px rgba(255, 102, 0, 0.3);
-            transition: transform 0.2s;
-        " onmouseover="this.style.transform='scale(1.05)'"
-           onmouseout="this.style.transform='scale(1)'">
-            {btn_voice}
-        </button>
-        <span id="voiceStatus" style="margin-left: 10px; color: #888;"></span>
-        <div id="voiceResult" style="margin-top:8px;padding:8px 12px;background:#1e1e1e;border-radius:8px;
-            border:1px solid #333;color:#eee;font-size:14px;display:none;cursor:pointer;"
-            title="Click to copy" onclick="copyVoiceText()">
-        </div>
-    </div>
-    <script>
-    function startVoice() {{
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SpeechRecognition) {{
-            document.getElementById('voiceStatus').innerText = '❌ {err_voice}';
-            return;
-        }}
-        const recognition = new SpeechRecognition();
-        recognition.lang = '{lang_voice}';
-        recognition.interimResults = false;
-        recognition.continuous = false;
-
-        document.getElementById('voiceBtn').style.background = 'linear-gradient(135deg, #e74c3c, #c0392b)';
-        document.getElementById('voiceStatus').innerText = '{msg_listening}';
-        document.getElementById('voiceResult').style.display = 'none';
-
-        recognition.onresult = function(event) {{
-            const text = event.results[0][0].transcript;
-            document.getElementById('voiceStatus').innerText = '{msg_done}';
-            document.getElementById('voiceResult').style.display = 'block';
-            document.getElementById('voiceResult').innerText = '🗣️ "' + text + '" — click to copy';
-            document.getElementById('voiceResult').setAttribute('data-text', text);
-
-            // Try to set the chat input value in the parent Streamlit document
-            try {{
-                const chatInput = window.parent.document.querySelector('textarea[data-testid="stChatInputTextArea"]');
-                if (chatInput) {{
-                    const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set;
-                    nativeSetter.call(chatInput, text);
-                    chatInput.dispatchEvent(new Event('input', {{ bubbles: true }}));
-                }}
-            }} catch(e) {{
-                // Cross-origin or selector issue — user can copy manually
-            }}
-
-            document.getElementById('voiceBtn').style.background = 'linear-gradient(135deg, #FF9933, #FF6600)';
-        }};
-
-        recognition.onerror = function(event) {{
-            document.getElementById('voiceStatus').innerText = '❌ Error: ' + event.error;
-            document.getElementById('voiceBtn').style.background = 'linear-gradient(135deg, #FF9933, #FF6600)';
-        }};
-
-        recognition.onend = function() {{
-            document.getElementById('voiceBtn').style.background = 'linear-gradient(135deg, #FF9933, #FF6600)';
-        }};
-
-        recognition.start();
-    }}
-
-    function copyVoiceText() {{
-        const el = document.getElementById('voiceResult');
-        const text = el.getAttribute('data-text');
-        if (text) {{
-            navigator.clipboard.writeText(text).then(function() {{
-                el.innerText = '📋 Copied! Now paste it in the chat box below.';
-                setTimeout(function() {{
-                    el.innerText = '🗣️ "' + text + '" — click to copy';
-                }}, 2000);
-            }});
-        }}
-    }}
-    </script>
-    """
-    st.components.v1.html(voice_component, height=100)
-
-    if "uploader_key" not in st.session_state:
-        st.session_state["uploader_key"] = 0
-
-    # --- 📷 Image Upload Section ---
-    with st.expander(t("📷 Attach Photo (Textbook, Handwriting, Diagram...)", "📷 Photo Attach Karo (Textbook, Handwriting, Diagram...)"), expanded=False):
-        st.caption(t("📸 Upload a photo — textbook page, handwritten doubt, diagram, or blackboard!", "📸 Photo upload karo — textbook page, handwritten doubt, diagram, blackboard kuch bhi!"))
-
-        uploaded_files = st.file_uploader(
-            t("Choose images", "Choose images"),
-            type=ALLOWED_TYPES,
-            accept_multiple_files=True,
-            key=f"image_uploader_{st.session_state['uploader_key']}",
-            label_visibility="collapsed",
-        )
-
-        # Validate and show previews
-        if uploaded_files:
-            # Check max image count
-            if len(uploaded_files) > MAX_IMAGES:
-                st.warning(t(f"⚠️ Maximum {MAX_IMAGES} images allowed! Only the first {MAX_IMAGES} will be used.", f"⚠️ Maximum {MAX_IMAGES} images allowed! Sirf pehli {MAX_IMAGES} use hongi."))
-                uploaded_files = uploaded_files[:MAX_IMAGES]
-
-            valid_files = []
-            for f in uploaded_files:
-                file_size_mb = f.size / (1024 * 1024)
-                if file_size_mb > MAX_FILE_SIZE_MB:
-                    st.error(t(f"❌ '{f.name}' is too large ({file_size_mb:.1f} MB). Max {MAX_FILE_SIZE_MB} MB allowed.", f"❌ '{f.name}' bahut badi hai ({file_size_mb:.1f} MB). Max {MAX_FILE_SIZE_MB} MB allowed."))
-                else:
-                    valid_files.append(f)
-
-            if valid_files:
-                st.markdown(t(f"**{len(valid_files)} photo(s) ready** ✅", f"**{len(valid_files)} photo(s) ready** ✅"))
-
-                # Show preview thumbnails
-                preview_cols = st.columns(4)
-                for idx, f in enumerate(valid_files):
-                    with preview_cols[idx % 4]:
-                        image_bytes = f.read()
-                        f.seek(0)  # Reset pointer after reading
-                        img = Image.open(io.BytesIO(image_bytes))
-                        # Create thumbnail for preview
-                        img.thumbnail((300, 300))
-                        st.image(img, caption=f.name, use_container_width=True)
-
-                # Store valid files for sending locally
-                current_valid_images = valid_files
-            else:
-                current_valid_images = []
-        else:
-            current_valid_images = []
-
-    # Chat input
-    user_input = st.chat_input(t("Ask your doubt... (with or without photo)", "Apna doubt pucho... (photo ke saath ya bina)"))
-
-    if user_input or current_valid_images:
-        # Need at least text or images to proceed
+    if should_send:
         clean_input = user_input.strip() if user_input else ""
 
-        if not clean_input and not current_valid_images:
-            st.toast(t("⚠️ Please write something or upload a photo!", "⚠️ Kuch toh likho ya photo upload karo!"))
-        else:
-            # --- Process images ---
-            image_b64_list = []
+        # --- Process images from the chat component ---
+        image_b64_list = [img["b64_full"] for img in uploaded_images]
 
-            for f in current_valid_images:
-                f.seek(0)  # Reset file pointer
-                image_bytes = f.read()
-                b64_str = base64.b64encode(image_bytes).decode("utf-8")
-                image_b64_list.append(b64_str)
+        # Build display text
+        display_text = clean_input if clean_input else t("📷 (Photo sent for analysis)", "📷 (Photo sent for analysis)")
 
-            # Build display text
-            display_text = clean_input if clean_input else t("📷 (Photo sent for analysis)", "📷 (Photo sent for analysis)")
+        # 1. Build the user message (append AFTER API call to avoid duplication)
+        user_msg = {"role": "user", "content": display_text, "avatar": "👨‍🎓"}
+        if image_b64_list:
+            user_msg["images"] = image_b64_list
 
-            # 1. Build the user message (append AFTER API call to avoid duplication)
-            user_msg = {"role": "user", "content": display_text, "avatar": "👨‍🎓"}
+        with st.chat_message("user", avatar="👨‍🎓"):
+            # Show uploaded images in the chat bubble
             if image_b64_list:
-                user_msg["images"] = image_b64_list
+                img_cols = st.columns(4)
+                for idx, img_b64 in enumerate(image_b64_list):
+                    with img_cols[idx % 4]:
+                        st.image(
+                            base64.b64decode(img_b64),
+                            use_container_width=True,
+                        )
+            st.markdown(display_text)
 
-            with st.chat_message("user", avatar="👨‍🎓"):
-                # Show uploaded images in the chat bubble
-                if image_b64_list:
-                    img_cols = st.columns(4)
-                    for idx, img_b64 in enumerate(image_b64_list):
-                        with img_cols[idx % 4]:
-                            st.image(
-                                base64.b64decode(img_b64),
-                                use_container_width=True,
-                            )
-                st.markdown(display_text)
+        # 2. Get AI response (with images if present)
+        with st.chat_message("assistant", avatar="🤖"):
+            spinner_text = t("Tutor is looking at the photo... 🔍", "Tutor photo dekh raha hai... 🔍") if image_b64_list else t("Tutor is thinking...", "Tutor soch raha hai...")
+            with st.spinner(spinner_text):
+                # Fetch weak topics for spaced repetition
+                due_topics_data = get_due_reviews(st.session_state["student_id"])
+                weak_topics = ", ".join([topic[0] for topic in due_topics_data]) if due_topics_data else None
 
-            # 2. Get AI response (with images if present)
-            with st.chat_message("assistant", avatar="🤖"):
-                spinner_text = t("Tutor is looking at the photo... 🔍", "Tutor photo dekh raha hai... 🔍") if image_b64_list else t("Tutor is thinking...", "Tutor soch raha hai...")
-                with st.spinner(spinner_text):
-                    # Fetch weak topics for spaced repetition
-                    due_topics_data = get_due_reviews(st.session_state["student_id"])
-                    weak_topics = ", ".join([topic[0] for topic in due_topics_data]) if due_topics_data else None
-
-                    response_data = get_response(
-                        clean_input,
-                        chat_history=st.session_state.get("messages", []),
-                        images=image_b64_list if image_b64_list else None,
-                        weak_topics=weak_topics,
-                        language=st.session_state["language"],
-                        mode=st.session_state["mode"]
-                    )
-
-                action = response_data.get("action", "explain")
-                tutor_reply = clean_latex(response_data.get("tutor_response", "⚠️ Koi response nahi mila."))
-                quiz_data = response_data.get("quiz_data")
-                next_suggestion = response_data.get("next_action_suggestion")
-
-                # --- Action Badge ---
-                action_labels = {
-                    "explain": t("💡 Explain", "💡 Samjhao"),
-                    "quiz": t("❓ Quiz Time", "❓ Quiz Time"),
-                    "revise": t("🔄 Revision", "🔄 Revision"),
-                    "game": t("🎮 Fun Game", "🎮 Fun Game"),
-                    "clarify": t("🤔 Clarification", "🤔 Clarification"),
-                }
-                badge = action_labels.get(action, t("💬 Response", "💬 Response"))
-                st.caption(badge)
-
-                # --- Tutor Response (always shown) ---
-                st.markdown(tutor_reply)
-                render_tts_button(tutor_reply)
-
-                # --- Action-Specific UI ---
-                if action == "explain":
-                    st.info(t("💡 **Did you understand?** If yes, let's move on. If not, feel free to ask again!", "💡 **Samajh aa gaya?** Agar haan toh aage badhte hain, warna phir se puchho!"))
-
-                elif action == "revise":
-                    st.warning(t("🔄 **Practice this topic again!** Revision leads to mastery.", "🔄 **Ye topic phir se practice karo!** Revision se hi mastery aati hai."))
-
-                elif action == "clarify":
-                    st.info(t("❓ **Please explain your question more clearly** so I can help you better.", "❓ **Apna question thoda aur clearly batao** taaki main better help kar sakun."))
-
-                elif action in ("quiz", "game"):
-                    st.info(t("👇 Please answer the quiz below!", "👇 Niche diye gaye quiz ka jawab do!"))
-
-            # Add user message to history AFTER API call (prevents sending it twice)
-            st.session_state["messages"].append(user_msg)
-
-            # Build assistant message for chat history
-            st.session_state["messages"].append({"role": "assistant", "content": tutor_reply, "avatar": "🤖"})
-
-            if action in ("quiz", "game") and quiz_data:
-                st.session_state["messages"].append({
-                    "role": "quiz",
-                    "quiz_data": quiz_data,
-                    "topic": response_data.get("topic", "Unknown"),
-                    "action": action,
-                    "answered": False,
-                    "selected_option": None,
-                    "is_correct": None
-                })
-
-            # 3. Silently log the weak topic in the background for progress tracking
-            # Skip if action is quiz/game — log_quiz_result() already logs to ConceptLogs
-            topic = response_data.get("topic", "Unknown")
-            status = response_data.get("status", "Unknown")
-
-            if topic != "Error" and action not in ("quiz", "game"):
-                log_concept(
-                    student_id=st.session_state["student_id"],
-                    concept_name=topic,
-                    status=status,
+                response_data = get_response(
+                    clean_input,
+                    chat_history=st.session_state.get("messages", []),
+                    images=image_b64_list if image_b64_list else None,
+                    weak_topics=weak_topics,
+                    language=st.session_state["language"],
+                    mode=get_api_mode(st.session_state.get("mode", "Fast")),
                 )
-                # A tiny pop-up to show the system is tracking data
-                st.toast(f"🧠 Tracked: {topic} ({status})")
 
-            # Show next action suggestion hint
-            if next_suggestion:
-                suggestion_labels = {
-                    "explain": t("💡 Explanation coming next", "💡 Aage explanation milega"),
-                    "quiz": t("❓ Quiz coming next", "❓ Aage quiz aayega"),
-                    "revise": t("🔄 Revision time", "🔄 Revision hogi"),
-                    "game": t("🎮 Game coming next", "🎮 Aage game hoga"),
-                    "clarify": t("🤔 Tell me a bit more", "🤔 Thoda aur batao"),
-                }
-                hint = suggestion_labels.get(next_suggestion, "")
-                if hint:
-                    st.toast(hint)
+            action = response_data.get("action", "explain")
+            tutor_reply = clean_latex(response_data.get("tutor_response", "⚠️ Koi response nahi mila."))
+            quiz_data = response_data.get("quiz_data")
+            next_suggestion = response_data.get("next_action_suggestion")
 
-            # 4. Clear pending images after sending by resetting the uploader key
-            if current_valid_images:
-                st.session_state["uploader_key"] += 1
-                st.rerun()
+            # --- Action Badge ---
+            action_labels = {
+                "explain": t("💡 Explain", "💡 Samjhao"),
+                "quiz": t("❓ Quiz Time", "❓ Quiz Time"),
+                "revise": t("🔄 Revision", "🔄 Revision"),
+                "game": t("🎮 Fun Game", "🎮 Fun Game"),
+                "clarify": t("🤔 Clarification", "🤔 Clarification"),
+            }
+            badge = action_labels.get(action, t("💬 Response", "💬 Response"))
+            st.caption(badge)
+
+            # --- Tutor Response (always shown) ---
+            st.markdown(tutor_reply)
+            render_tts_button(tutor_reply)
+
+            # --- Action-Specific UI ---
+            if action == "explain":
+                st.info(t("💡 **Did you understand?** If yes, let's move on. If not, feel free to ask again!", "💡 **Samajh aa gaya?** Agar haan toh aage badhte hain, warna phir se puchho!"))
+
+            elif action == "revise":
+                st.warning(t("🔄 **Practice this topic again!** Revision leads to mastery.", "🔄 **Ye topic phir se practice karo!** Revision se hi mastery aati hai."))
+
+            elif action == "clarify":
+                st.info(t("❓ **Please explain your question more clearly** so I can help you better.", "❓ **Apna question thoda aur clearly batao** taaki main better help kar sakun."))
+
+            elif action in ("quiz", "game"):
+                st.info(t("👇 Please answer the quiz below!", "👇 Niche diye gaye quiz ka jawab do!"))
+
+        # Add user message to history AFTER API call (prevents sending it twice)
+        st.session_state["messages"].append(user_msg)
+
+        # Build assistant message for chat history
+        st.session_state["messages"].append({"role": "assistant", "content": tutor_reply, "avatar": "🤖"})
+
+        if action in ("quiz", "game") and quiz_data:
+            st.session_state["messages"].append({
+                "role": "quiz",
+                "quiz_data": quiz_data,
+                "topic": response_data.get("topic", "Unknown"),
+                "action": action,
+                "answered": False,
+                "selected_option": None,
+                "is_correct": None
+            })
+
+        # 3. Silently log the weak topic in the background for progress tracking
+        # Skip if action is quiz/game — log_quiz_result() already logs to ConceptLogs
+        topic = response_data.get("topic", "Unknown")
+        status = response_data.get("status", "Unknown")
+
+        if topic != "Error" and action not in ("quiz", "game"):
+            log_concept(
+                student_id=st.session_state["student_id"],
+                concept_name=topic,
+                status=status,
+            )
+            # A tiny pop-up to show the system is tracking data
+            st.toast(f"🧠 Tracked: {topic} ({status})")
+
+        # Show next action suggestion hint
+        if next_suggestion:
+            suggestion_labels = {
+                "explain": t("💡 Explanation coming next", "💡 Aage explanation milega"),
+                "quiz": t("❓ Quiz coming next", "❓ Aage quiz aayega"),
+                "revise": t("🔄 Revision time", "🔄 Revision hogi"),
+                "game": t("🎮 Game coming next", "🎮 Aage game hoga"),
+                "clarify": t("🤔 Tell me a bit more", "🤔 Thoda aur batao"),
+            }
+            hint = suggestion_labels.get(next_suggestion, "")
+            if hint:
+                st.toast(hint)
+
+        # 4. Clear the input after sending
+        clear_chat_input()
+        st.rerun()

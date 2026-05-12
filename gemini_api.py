@@ -6,6 +6,30 @@ import json
 OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://localhost:11434/api/chat")
 MODEL_NAME = "gemma4:e4b"
 
+# ── Mode-specific Ollama generation options ──
+# Fast: short context, fewer tokens, snappy replies
+# Slow: large context, more tokens, detailed reasoning
+MODE_OPTIONS = {
+    "Fast Result": {
+        "num_ctx": 2048,      # context window (tokens)
+        "num_predict": 512,   # max output tokens
+        "temperature": 0.7,   # slightly creative
+        "top_p": 0.9,
+        "repeat_penalty": 1.1,
+    },
+    "Long Think": {
+        "num_ctx": 8192,      # large context for history
+        "num_predict": 2048,  # room for chain-of-thought + answer
+        "temperature": 0.5,   # more focused
+        "top_p": 0.95,
+        "repeat_penalty": 1.1,
+    },
+}
+MODE_TIMEOUT = {
+    "Fast Result": 60,   # seconds
+    "Long Think": 300,
+}
+
 def get_system_prompt(language="Hindi", mode="Fast Result"):
     
     think_rule = ""
@@ -228,15 +252,20 @@ def get_response(user_input, chat_history=None, images=None, weak_topics=None, l
 
     messages.append(current_message)
 
+    # Select mode-appropriate generation options and timeout
+    options = MODE_OPTIONS.get(mode, MODE_OPTIONS["Fast Result"])
+    timeout = MODE_TIMEOUT.get(mode, 60)
+
     payload = {
         "model": MODEL_NAME,
         "messages": messages,
         "stream": False,
-        "format": "json"  # This Ollama flag forces JSON output
+        "format": "json",  # This Ollama flag forces JSON output
+        "options": options,
     }
 
     try:
-        response = requests.post(OLLAMA_URL, json=payload, timeout=180)
+        response = requests.post(OLLAMA_URL, json=payload, timeout=timeout)
         response.raise_for_status()
 
         # /api/chat returns response in message.content
