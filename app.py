@@ -39,7 +39,6 @@ def render_tts_button(text):
     st.components.v1.html(html, height=45)
 
 
-
 st.set_page_config(
     page_title="Hindi AI Tutor 🌾",
     page_icon="🌾",
@@ -66,14 +65,14 @@ if "student_id" not in st.session_state:
             st.error("⚠️ Naam toh daalo! (Please enter your name)")
             st.stop()
 
-        elif not clean_password: 
+        elif not clean_password:
             st.error("⚠️ Password khali nahi chhod sakte! (Please enter your password)")
             st.stop()
-            
+
         elif clean_password != password_input:
             st.error("⚠️ Password ke end or start m space nahi ho sakta! (Password can't contain space in end or start)")
             st.stop()
-            
+
         else:
             # Call our SQLite DB function to get ID and calculate streak
             s_id, streak = login_and_update_streak(clean_name, clean_password)
@@ -149,7 +148,7 @@ else:
             border-radius: 25px; cursor: pointer; font-size: 16px;
             box-shadow: 0 2px 8px rgba(255, 102, 0, 0.3);
             transition: transform 0.2s;
-        " onmouseover="this.style.transform='scale(1.05)'" 
+        " onmouseover="this.style.transform='scale(1.05)'"
            onmouseout="this.style.transform='scale(1)'">
             🎤 Bolo (Voice Input)
         </button>
@@ -165,10 +164,10 @@ else:
         const recognition = new SpeechRecognition();
         recognition.lang = 'hi-IN';
         recognition.interimResults = false;
-        
+
         document.getElementById('voiceBtn').style.background = 'linear-gradient(135deg, #e74c3c, #c0392b)';
         document.getElementById('voiceStatus').innerText = '🔴 Sun raha hoon...';
-        
+
         recognition.onresult = function(event) {
             const text = event.results[0][0].transcript;
             // Find the Streamlit chat input and set its value
@@ -181,16 +180,16 @@ else:
             }
             document.getElementById('voiceBtn').style.background = 'linear-gradient(135deg, #FF9933, #FF6600)';
         };
-        
+
         recognition.onerror = function(event) {
             document.getElementById('voiceStatus').innerText = '❌ Error: ' + event.error;
             document.getElementById('voiceBtn').style.background = 'linear-gradient(135deg, #FF9933, #FF6600)';
         };
-        
+
         recognition.onend = function() {
             document.getElementById('voiceBtn').style.background = 'linear-gradient(135deg, #FF9933, #FF6600)';
         };
-        
+
         recognition.start();
     }
     </script>

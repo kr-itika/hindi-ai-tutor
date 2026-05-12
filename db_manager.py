@@ -4,6 +4,8 @@ import logging
 import os
 from datetime import date, datetime
 
+import pandas as pd
+
 logger = logging.getLogger(__name__)
 
 DB_NAME = "students.db"
@@ -118,10 +120,9 @@ def login_and_update_streak(student_name, password=""):
             student_id = cursor.lastrowid
 
             cursor.execute('''
-                INSERT INTO Streaks (student_id, last_active_date, current_streak, highest_streak) 
+                INSERT INTO Streaks (student_id, last_active_date, current_streak, highest_streak)
                 VALUES (?, ?, 1, 1)
-            ''', 
-            (student_id, today_str))
+            ''', (student_id, today_str))
             conn.commit()
             logger.info("New student registered: %s (id=%d)", student_name, student_id)
             return student_id, 1
@@ -131,7 +132,7 @@ def login_and_update_streak(student_name, password=""):
             student_id = student_row[0]
             cursor.execute(
                 "SELECT last_active_date, current_streak, highest_streak FROM Streaks WHERE student_id = ?",
-                (student_id,), #for sqlite3, The parameters argument must be of type tuple, list or dict that's why there is a comma which identifies it as a tuple even if it has only one data_item.
+                (student_id,),
             )
             streak_data = cursor.fetchone()
 
@@ -148,7 +149,7 @@ def login_and_update_streak(student_name, password=""):
                 current_streak = 1
 
             cursor.execute('''
-                UPDATE Streaks 
+                UPDATE Streaks
                 SET last_active_date = ?, current_streak = ?, highest_streak = ?
                 WHERE student_id = ?
             ''', (today_str, current_streak, highest_streak, student_id))
@@ -222,11 +223,9 @@ def get_student_progress(student_id):
 
 def get_teacher_dashboard_data():
     """Returns all concept logs joined with student names for the teacher panel."""
-    import pandas as pd
-
     with sqlite3.connect(DB_NAME) as conn:
         query = '''
-            SELECT Students.name, ConceptLogs.concept_name, ConceptLogs.status, ConceptLogs.timestamp 
+            SELECT Students.name, ConceptLogs.concept_name, ConceptLogs.status, ConceptLogs.timestamp
             FROM ConceptLogs
             JOIN Students ON ConceptLogs.student_id = Students.student_id
             ORDER BY ConceptLogs.timestamp DESC
@@ -237,8 +236,6 @@ def get_teacher_dashboard_data():
 
 def get_all_students():
     """Returns a list of all students with their streak info."""
-    import pandas as pd
-
     with sqlite3.connect(DB_NAME) as conn:
         query = '''
             SELECT Students.name, Students.join_date,
@@ -253,11 +250,9 @@ def get_all_students():
 
 def get_quiz_dashboard_data():
     """Returns all quiz logs joined with student names for the teacher panel."""
-    import pandas as pd
-
     with sqlite3.connect(DB_NAME) as conn:
         query = '''
-            SELECT Students.name, QuizLogs.topic, QuizLogs.quiz_type, 
+            SELECT Students.name, QuizLogs.topic, QuizLogs.quiz_type,
                    QuizLogs.question, QuizLogs.student_answer, QuizLogs.correct_answer,
                    CASE WHEN QuizLogs.is_correct = 1 THEN 'Correct ✅' ELSE 'Wrong ❌' END as result,
                    QuizLogs.timestamp
