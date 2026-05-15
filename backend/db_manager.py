@@ -224,23 +224,30 @@ def _get_recent_quiz_results(cursor, student_id, topic, limit=2):
     return [row[0] for row in cursor.fetchall()]
 
 
-def log_concept(student_id, concept_name, status):
-    """Saves a record of the topic the student is learning."""
+def log_concept(student_id, concept_name):
+    """Records that a topic was discussed in a chat session.
+
+    Deliberately does NOT assign a mastery status — conversation alone cannot
+    determine whether a student has mastered a topic.  Only quiz results
+    (log_quiz_result) set meaningful Mastered / Struggling / Learning statuses.
+
+    A neutral 'Learning' placeholder is stored so the calendar can count this
+    date as an active day.  interval_days=0 and next_review_date=NULL mark it
+    as a chat entry (not a quiz entry), which filters it out of progress stats
+    and due-review queries.
+    """
     with sqlite3.connect(DB_NAME, timeout=10) as conn:
         cursor = conn.cursor()
         timestamp = datetime.now().isoformat()
-        
-        prev_interval = _get_latest_interval(cursor, student_id, concept_name)
-        new_interval = _calculate_next_interval(status, prev_interval)
-        next_review_date = (date.today() + timedelta(days=new_interval)).isoformat()
 
         cursor.execute('''
-            INSERT INTO ConceptLogs (student_id, concept_name, status, timestamp, next_review_date, interval_days)
-            VALUES (?, ?, ?, ?, ?, ?)
-        ''', (student_id, concept_name, status, timestamp, next_review_date, new_interval))
+            INSERT INTO ConceptLogs
+                (student_id, concept_name, status, timestamp, next_review_date, interval_days)
+            VALUES (?, ?, 'Learning', ?, NULL, 0)
+        ''', (student_id, concept_name, timestamp))
 
         conn.commit()
-    logger.info("Logged concept: student=%d, topic=%s, status=%s, next_review=%s", student_id, concept_name, status, next_review_date)
+    logger.info("Logged concept discussion: student=%d, topic=%s", student_id, concept_name)
 
 
 def log_quiz_result(student_id, topic, quiz_type, question, student_answer, correct_answer, is_correct):
@@ -294,13 +301,28 @@ def log_quiz_result(student_id, topic, quiz_type, question, student_answer, corr
 
 
 def get_student_progress(student_id):
-    """Returns mastered/learning/struggling counts for a student."""
+    """Returns mastered/learning/struggling counts based solely on quiz performance.
+
+    Only ConceptLogs rows with interval_days > 0 are considered — those are
+    exclusively written by log_quiz_result().  Chat-discussion rows have
+    interval_days=0 and are intentionally excluded, because conversation alone
+    cannot reliably judge a student's mastery of a topic.
+    """
     with sqlite3.connect(DB_NAME, timeout=10) as conn:
         cursor = conn.cursor()
         cursor.execute('''
-            SELECT status, COUNT(*) as count
-            FROM ConceptLogs
-            WHERE student_id = ?
+            WITH LatestQuizStatus AS (
+                SELECT concept_name, status,
+                       ROW_NUMBER() OVER(
+                           PARTITION BY concept_name
+                           ORDER BY timestamp DESC
+                       ) AS rn
+                FROM ConceptLogs
+                WHERE student_id = ? AND interval_days > 0
+            )
+            SELECT status, COUNT(*) AS count
+            FROM LatestQuizStatus
+            WHERE rn = 1
             GROUP BY status
         ''', (student_id,))
         rows = cursor.fetchall()

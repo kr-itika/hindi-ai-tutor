@@ -106,12 +106,12 @@ def chat():
         mode=mode,
     )
 
-    # Log concept if not a quiz/game action
+    # Log concept discussed (no status — mastery is only determined by quiz results)
     if student_id and result.get("status") != "Error":
         action = result.get("action", "explain")
         if action not in ("quiz", "game"):
             try:
-                log_concept(student_id, result.get("topic", "General"), result.get("status", "Learning"))
+                log_concept(student_id, result.get("topic", "General"))
             except Exception:
                 pass
 
