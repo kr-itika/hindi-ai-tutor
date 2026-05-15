@@ -41,16 +41,15 @@ function t(en, hi) {
 function updateUILanguage() {
   document.querySelectorAll('[data-en]').forEach(el => {
     if (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') return; // skip form elements
-    el.textContent = currentLanguage === 'English' ? el.dataset.en : el.dataset.hi;
+    el.innerHTML = currentLanguage === 'English' ? el.dataset.en : el.dataset.hi;
   });
 
-  // Switch textarea placeholder
-  const ta = document.getElementById('chatTextarea');
-  if (ta) {
-    ta.placeholder = currentLanguage === 'English'
-      ? (ta.dataset.placeholderEn || 'Ask Prajna...')
-      : (ta.dataset.placeholderHi || 'प्रज्ञा से पूछो...');
-  }
+  // Switch ALL element placeholders (inputs, textareas) that have data-placeholder-en
+  document.querySelectorAll('[data-placeholder-en]').forEach(el => {
+    el.placeholder = currentLanguage === 'English'
+      ? (el.dataset.placeholderEn || '')
+      : (el.dataset.placeholderHi || el.dataset.placeholderEn || '');
+  });
 
   // Re-calculate mode slider after text width changes
   setTimeout(() => setMode(currentMode), 50);

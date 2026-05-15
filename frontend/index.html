@@ -35,7 +35,7 @@
 
     <!-- Badges -->
     <div class="sidebar-section" id="badgesSection" style="display:none;">
-      <div class="sidebar-label">🏅 Badges</div>
+      <div class="sidebar-label" data-en="🏅 Badges" data-hi="🏅 बैज">🏅 Badges</div>
       <div class="badges-list" id="badgesList"></div>
     </div>
 
@@ -71,7 +71,7 @@
 
     <!-- Language Toggle -->
     <div class="sidebar-section">
-      <div class="sidebar-label">🌐 Language / भाषा</div>
+      <div class="sidebar-label" data-en="🌐 Language" data-hi="🌐 भाषा">🌐 Language / भाषा</div>
       <div class="lang-toggle" id="langToggle">
         <button class="lang-btn active" data-lang="Hindi" onclick="setLanguage('Hindi')">हिन्दी</button>
         <button class="lang-btn" data-lang="English" onclick="setLanguage('English')">English</button>
@@ -101,7 +101,7 @@
       </a>
     </div>
     <div class="nav-right">
-      <a href="#chat-zone" class="nav-link">Chat</a>
+      <a href="#chat-zone" class="nav-link" data-en="Chat" data-hi="चैट">Chat</a>
       <a href="#" class="nav-link" data-en="About" data-hi="जानकारी">About</a>
       <div class="nav-lang" id="navLangToggle">
         <button class="lang-btn active" data-lang="Hindi" onclick="setLanguage('Hindi')">हिन्दी</button>
@@ -118,14 +118,14 @@
     <!-- ZONE 1 — HERO -->
     <section class="hero-zone" id="heroZone">
       <div class="hero-zone-left">
-        <p class="hero-label fade-up">w i s d o m ,&nbsp;&nbsp; s p o k e n .</p>
+        <p class="hero-label fade-up" data-en="w i s d o m ,&nbsp;&nbsp; s p o k e n ." data-hi="ज् ञ ा न ,&nbsp;&nbsp; ब ो ल ो .">w i s d o m ,&nbsp;&nbsp; s p o k e n .</p>
 
         <div class="hero-heading fade-up">
           <div class="line-hindi">नमस्ते !</div>
           <div class="line-eng">I'm Prajna.</div>
         </div>
 
-        <p class="hero-tagline fade-up">ज् ञ ा न&nbsp;&nbsp; क ी&nbsp;&nbsp; भ ा ष ा&nbsp;&nbsp; ब ो ल ो</p>
+        <p class="hero-tagline fade-up" data-en="s p e a k &nbsp;&nbsp; t h e &nbsp;&nbsp; l a n g u a g e &nbsp;&nbsp; o f &nbsp;&nbsp; k n o w l e d g e" data-hi="ज् ञ ा न&nbsp;&nbsp; क ी&nbsp;&nbsp; भ ा ष ा&nbsp;&nbsp; ब ो ल ो">ज् ञ ा न&nbsp;&nbsp; क ी&nbsp;&nbsp; भ ा ष ा&nbsp;&nbsp; ब ो ल ो</p>
 
         <div class="cta-row fade-up">
           <a href="#chat-zone" class="cta-primary" data-en="Start Learning" data-hi="सीखना शुरू करो">Start Learning</a>
@@ -148,11 +148,12 @@
         <div class="msg msg--bot">
           <div class="msg-avatar">प्र</div>
           <div>
-            <div class="msg-bubble">
-              <span class="hindi">नमस्ते!</span> I'm Prajna, your AI Hindi tutor. Ask me anything about Hindi — grammar, vocabulary, pronunciation, or just practice a conversation! 🙏
-            </div>
-            <button class="tts-btn" onclick="speak(this.closest('.msg').querySelector('.msg-bubble').textContent)" data-en="🔊 Listen" data-hi="🔊 सुनो">🔊 Listen</button>
-            <div class="msg-time">Just now</div>
+            <div class="msg-bubble"
+              data-en="Namaste! 🙏 I'm Prajna, your AI tutor. Ask me anything about Hindi — grammar, vocabulary, pronunciation, or just practise a conversation!"
+              data-hi="नमस्ते! 🙏 मैं प्रज्ञा हूँ, आपका AI हिन्दी शिक्षक। हिन्दी के बारे में कुछ भी पूछो — व्याकरण, शब्दावली, उच्चारण, या बस बातचीत का अभ्यास करो!"
+            >नमस्ते! 🙏 मैं प्रज्ञा हूँ, आपका AI हिन्दी शिक्षक। हिन्दी के बारे में कुछ भी पूछो — व्याकरण, शब्दावली, उच्चारण, या बस बातचीत का अभ्यास करो!</div>
+            <button class="tts-btn" onclick="speak(this.closest('.msg').querySelector('.msg-bubble').textContent)" data-en="🔊 Listen" data-hi="🔊 सुनो">🔊 सुनो</button>
+            <div class="msg-time" data-en="Just now" data-hi="अभी">Just now</div>
           </div>
         </div>
       </div>

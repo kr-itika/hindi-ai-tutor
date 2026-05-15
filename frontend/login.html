@@ -25,7 +25,7 @@
         <div class="lang-slider" id="langSlider"></div>
       </div>
       <a href="#" class="nav-link nav-link--ghost" onclick="switchTab('signin')">
-        <span data-en="Already have an account?" data-hi="पहले से अकाउंट है?">Already have an account?</span> <span>Sign in</span>
+        <span data-en="Already have an account?" data-hi="पहले से अकाउंट है?">Already have an account?</span> <span data-en="Sign in" data-hi="साइन इन">Sign in</span>
       </a>
     </div>
   </nav>
@@ -34,21 +34,21 @@
   <main class="login-page">
     <!-- LEFT COLUMN -->
     <section class="login-left">
-      <p class="hero-label fade-up">w i s d o m ,&nbsp;&nbsp; s p o k e n .</p>
+      <p class="hero-label fade-up" data-en="w i s d o m ,&nbsp;&nbsp; s p o k e n ." data-hi="ज् ञ ा न ,&nbsp;&nbsp; ब ो ल ो .">w i s d o m ,&nbsp;&nbsp; s p o k e n .</p>
 
       <div class="hero-heading fade-up">
         <div class="line-hindi">नमस्ते !</div>
         <div class="line-eng">I'm Prajna.</div>
       </div>
 
-      <p class="hero-tagline fade-up">ज् ञ ा न&nbsp;&nbsp; क ी&nbsp;&nbsp; भ ा ष ा&nbsp;&nbsp; ब ो ल ो</p>
+      <p class="hero-tagline fade-up" data-en="s p e a k &nbsp;&nbsp; t h e &nbsp;&nbsp; l a n g u a g e &nbsp;&nbsp; o f &nbsp;&nbsp; k n o w l e d g e" data-hi="ज् ञ ा न&nbsp;&nbsp; क ी&nbsp;&nbsp; भ ा ष ा&nbsp;&nbsp; ब ो ल ो">ज् ञ ा न&nbsp;&nbsp; क ी&nbsp;&nbsp; भ ा ष ा&nbsp;&nbsp; ब ो ल ो</p>
 
       <div class="hero-glyph hero-glyph--login fade-up" aria-hidden="true">ज्ञ</div>
 
       <div class="feature-pills fade-up" style="margin-top:32px;">
-        <span class="feature-pill">🧠&nbsp; AI-powered Hindi tutor</span>
-        <span class="feature-pill">📚&nbsp; Built for rural learners</span>
-        <span class="feature-pill">⚡&nbsp; Fast &amp; deep modes</span>
+        <span class="feature-pill" data-en="🧠&nbsp; AI-powered Hindi tutor" data-hi="🧠&nbsp; AI हिन्दी शिक्षक">🧠&nbsp; AI-powered Hindi tutor</span>
+        <span class="feature-pill" data-en="📚&nbsp; Built for rural learners" data-hi="📚&nbsp; ग्रामीण छात्रों के लिए">📚&nbsp; Built for rural learners</span>
+        <span class="feature-pill" data-en="⚡&nbsp; Fast &amp; deep modes" data-hi="⚡&nbsp; तेज़ और विस्तृत मोड">⚡&nbsp; Fast &amp; deep modes</span>
       </div>
     </section>
 
@@ -61,38 +61,50 @@
             <span class="brace">{</span><span class="name">prajna</span><span class="brace">}</span>
           </span>
         </div>
-        <p class="auth-subtitle">अपना सफर शुरू करो</p>
+        <p class="auth-subtitle" data-en="Begin your journey" data-hi="अपना सफर शुरू करो">अपना सफर शुरू करो</p>
 
         <!-- Tabs -->
         <div class="tab-switcher" id="tabSwitcher">
-          <button class="tab-btn active" data-tab="signin" id="tabSignin" onclick="switchTab('signin')">Sign In</button>
-          <button class="tab-btn" data-tab="signup" id="tabSignup" onclick="switchTab('signup')">Sign Up</button>
+          <button class="tab-btn active" data-tab="signin" id="tabSignin" onclick="switchTab('signin')" data-en="Sign In" data-hi="साइन इन">Sign In</button>
+          <button class="tab-btn" data-tab="signup" id="tabSignup" onclick="switchTab('signup')" data-en="Sign Up" data-hi="साइन अप">Sign Up</button>
           <div class="tab-slider" id="tabSlider"></div>
         </div>
 
         <!-- Sign In Form -->
         <form id="formSignin" class="auth-form" onsubmit="handleSignin(event)">
           <div class="form-group">
-            <label for="si-email">Name / नाम</label>
-            <input type="text" id="si-email" class="form-input" placeholder="अपना नाम लिखो" required>
+            <label for="si-email" data-en="Name" data-hi="नाम">Name / नाम</label>
+            <input type="text" id="si-email" class="form-input"
+              placeholder="अपना नाम लिखो"
+              data-placeholder-en="Enter your name"
+              data-placeholder-hi="अपना नाम लिखो"
+              required>
             <span class="field-error" id="si-email-err"></span>
           </div>
           <div class="form-group">
-            <label for="si-password">Password</label>
-            <input type="password" id="si-password" class="form-input" placeholder="••••••••" required>
+            <label for="si-password" data-en="Password" data-hi="पासवर्ड">Password</label>
+            <input type="password" id="si-password" class="form-input"
+              placeholder="••••••••"
+              data-placeholder-en="••••••••"
+              data-placeholder-hi="••••••••"
+              required>
             <button type="button" class="toggle-pw" onclick="togglePw('si-password',this)">👁</button>
             <span class="field-error" id="si-password-err"></span>
           </div>
-          <a href="#" class="forgot-link">Forgot password?</a>
+          <a href="#" class="forgot-link" data-en="Forgot password?" data-hi="पासवर्ड भूल गए?">Forgot password?</a>
 
-          <button type="submit" class="btn-primary">Sign In&nbsp; →</button>
+          <button type="submit" class="btn-primary" data-en="Sign In&nbsp; →" data-hi="साइन इन&nbsp; →">Sign In&nbsp; →</button>
         </form>
 
         <!-- Sign Up Form -->
         <form id="formSignup" class="auth-form" style="display:none;" onsubmit="handleSignup(event)">
           <div class="form-group">
-            <label for="su-name">Name / नाम</label>
-            <input type="text" id="su-name" class="form-input" placeholder="अपना नाम लिखो" required>
+            <label for="su-name" data-en="Name" data-hi="नाम">Name / नाम</label>
+            <input type="text" id="su-name" class="form-input"
+              placeholder="अपना नाम लिखो"
+              data-placeholder-en="Enter your name"
+              data-placeholder-hi="अपना नाम लिखो"
+              required>
             <span class="field-error" id="su-name-err"></span>
           </div>
           <div class="form-group" style="display:none;">
@@ -101,19 +113,27 @@
             <span class="field-error" id="su-email-err"></span>
           </div>
           <div class="form-group">
-            <label for="su-password">Password</label>
-            <input type="password" id="su-password" class="form-input" placeholder="••••••••" required>
+            <label for="su-password" data-en="Password" data-hi="पासवर्ड">Password</label>
+            <input type="password" id="su-password" class="form-input"
+              placeholder="••••••••"
+              data-placeholder-en="••••••••"
+              data-placeholder-hi="••••••••"
+              required>
             <button type="button" class="toggle-pw" onclick="togglePw('su-password',this)">👁</button>
             <span class="field-error" id="su-password-err"></span>
           </div>
           <div class="form-group">
-            <label for="su-confirm">Confirm Password</label>
-            <input type="password" id="su-confirm" class="form-input" placeholder="••••••••" required>
+            <label for="su-confirm" data-en="Confirm Password" data-hi="पासवर्ड दोबारा डालो">Confirm Password</label>
+            <input type="password" id="su-confirm" class="form-input"
+              placeholder="••••••••"
+              data-placeholder-en="••••••••"
+              data-placeholder-hi="••••••••"
+              required>
             <button type="button" class="toggle-pw" onclick="togglePw('su-confirm',this)">👁</button>
             <span class="field-error" id="su-confirm-err"></span>
           </div>
 
-          <button type="submit" class="btn-primary" style="margin-top:8px;">Create Account&nbsp; →</button>
+          <button type="submit" class="btn-primary" style="margin-top:8px;" data-en="Create Account&nbsp; →" data-hi="अकाउंट बनाओ&nbsp; →">Create Account&nbsp; →</button>
         </form>
       </div>
     </section>
