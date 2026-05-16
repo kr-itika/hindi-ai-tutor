@@ -10,6 +10,8 @@ __pycache__/
 
 # Database (local data)
 *.db
+*.db-shm
+*.db-wal
 
 # IDE / Editor
 .vscode/
