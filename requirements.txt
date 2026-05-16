@@ -2,5 +2,3 @@ flask
 flask-cors
 requests
 gunicorn
-langchain-ollama
-langchain-core

@@ -1,10 +1,7 @@
 import os
 import json
 import logging
-
-from langchain_ollama import ChatOllama
-from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
-from langchain_core.output_parsers import JsonOutputParser
+import requests
 
 logger = logging.getLogger(__name__)
 
@@ -18,15 +15,15 @@ MODE_OPTIONS = {
         "num_predict": 256,
         "temperature": 0.8,
         "top_p": 0.85,
-        "repeat_penalty": 1.2,
+        "repeat_penalty": 1.1
     },
     "Long Think": {
-        "num_ctx": 8192,
-        "num_predict": 4096,
+        "num_ctx": 2048,
+        "num_predict": 512,
         "temperature": 0.5,
-        "top_p": 0.95,
-        "repeat_penalty": 1.1,
-    },
+        "top_p": 0.9,
+        "repeat_penalty": 1.15
+    }
 }
 MODE_TIMEOUT = {"Fast Result": 60, "Long Think": 300}
 
@@ -37,16 +34,6 @@ def generate_title(user_message, language="Hindi"):
     Uses a minimal context window and low token budget so it's near-instant.
     Falls back to a truncated version of the message if Ollama fails.
     """
-    llm = ChatOllama(
-        model=MODEL_NAME,
-        base_url=OLLAMA_BASE_URL,
-        format="json",
-        temperature=0.3,   # deterministic — we want a consistent, factual title
-        num_ctx=512,
-        num_predict=64,
-    )
-    chain = llm | JsonOutputParser()
-
     if language == "English":
         prompt = (
             f'Create a short, descriptive title (3 to 5 words) for a tutoring session '
@@ -60,9 +47,33 @@ def generate_title(user_message, language="Hindi"):
             f'Sirf JSON mein jawab do: {{"title": "Aapka Title Yahan"}}'
         )
 
+    payload = {
+        "model": MODEL_NAME,
+        "messages": [{"role": "user", "content": prompt}],
+        "stream": False,
+        "format": "json",
+        "options": {
+            "temperature": 0.3,
+            "num_ctx": 512,
+            "num_predict": 64
+        }
+    }
+
+    url = f"{OLLAMA_BASE_URL}/api/chat"
     try:
-        result = chain.invoke([HumanMessage(content=prompt)])
-        title = result.get("title", "").strip()
+        resp = requests.post(url, json=payload, timeout=10)
+        resp.raise_for_status()
+        raw_out = resp.json()["message"]["content"].strip()
+        
+        # Handle markdown fences around JSON
+        if raw_out.startswith("```"):
+            raw_out = raw_out.split("\n", 1)[-1]
+            if raw_out.endswith("```"):
+                raw_out = raw_out[:-3]
+            raw_out = raw_out.strip()
+            
+        data = json.loads(raw_out)
+        title = data.get("title", "").strip()
         return title[:80] if title else user_message[:60]
     except Exception as e:
         logger.warning("generate_title failed: %s", e)
@@ -239,7 +250,7 @@ NOTE: quiz_data is ONLY required when action is "quiz" or "game". For other acti
 
 
 def get_response(user_input, chat_history=None, images=None, weak_topics=None, language="Hindi", mode="Fast Result"):
-    """Get a tutor response using a LangChain LCEL chain: ChatOllama | JsonOutputParser.
+    """Get a tutor response directly using the Ollama REST API.
 
     Args:
         user_input:   Student's text question.
@@ -249,37 +260,20 @@ def get_response(user_input, chat_history=None, images=None, weak_topics=None, l
         language:     "Hindi" or "English".
         mode:         "Fast Result" or "Long Think".
     """
-    opts    = MODE_OPTIONS.get(mode, MODE_OPTIONS["Fast Result"])
+    url = f"{OLLAMA_BASE_URL}/api/chat"
+    
+    opts = MODE_OPTIONS.get(mode, MODE_OPTIONS["Fast Result"])
     timeout = MODE_TIMEOUT.get(mode, 60)
-
-    # ── LangChain LLM + output parser chain ─────────────────────────────
-    llm = ChatOllama(
-        model=MODEL_NAME,
-        base_url=OLLAMA_BASE_URL,
-        format="json",
-        temperature=opts["temperature"],
-        num_ctx=opts["num_ctx"],
-        num_predict=opts["num_predict"],
-        model_kwargs={
-            "top_p":           opts["top_p"],
-            "repeat_penalty":  opts["repeat_penalty"],
-        },
-    )
-    chain = llm | JsonOutputParser()
-
+    
     # ── Build message list ───────────────────────────────────────────────
-    lc_messages = [SystemMessage(content=get_system_prompt(language, mode))]
+    messages = [{"role": "system", "content": get_system_prompt(language, mode)}]
 
     if chat_history:
         for msg in chat_history[-20:]:
-            role    = msg.get("role", "")
+            role = msg.get("role", "")
             content = msg.get("content", "")
-            if not content:
-                continue
-            if role == "user":
-                lc_messages.append(HumanMessage(content=content))
-            elif role == "assistant":
-                lc_messages.append(AIMessage(content=content))
+            if content and role in ["user", "assistant"]:
+                messages.append({"role": role, "content": content})
 
     # ── Spaced-repetition injection ──────────────────────────────────────
     weak_ctx = ""
@@ -308,38 +302,63 @@ def get_response(user_input, chat_history=None, images=None, weak_topics=None, l
             if user_input else
             f"{photo_only}{weak_ctx}\n\n{json_req}"
         )
-        content = [{"type": "text", "text": text_part}]
-        for img_b64 in images:
-            content.append({
-                "type":      "image_url",
-                "image_url": {"url": f"data:image/jpeg;base64,{img_b64}"},
-            })
-        lc_messages.append(HumanMessage(content=content))
+        # Ollama expects list of base64 strings in 'images' field for chat API
+        messages.append({
+            "role": "user",
+            "content": text_part,
+            "images": images
+        })
     else:
-        lc_messages.append(
-            HumanMessage(content=f"{prefix}{user_input}{weak_ctx}\n\n{json_req}")
-        )
+        messages.append({
+            "role": "user",
+            "content": f"{prefix}{user_input}{weak_ctx}\n\n{json_req}"
+        })
 
-    # ── Invoke chain ─────────────────────────────────────────────────────
+    # ── Invoke API ───────────────────────────────────────────────────────
+    payload = {
+        "model": MODEL_NAME,
+        "messages": messages,
+        "stream": False,
+        "format": "json",
+        "options": opts
+    }
+    
     try:
-        result = chain.invoke(lc_messages)
-        result.setdefault("action",         "explain")
-        result.setdefault("tutor_response", "")
-        result.setdefault("topic",          "General")
-        result.setdefault("status",         "Learning")
-        return result
-
-    except Exception as e:
-        err = str(e).lower()
-        logger.error("LangChain chain error: %s", e)
-        if "connection" in err or "refused" in err:
-            msg = ("⚠️ Unable to connect to Ollama server." if language == "English"
-                   else "⚠️ Ollama server se connect nahi ho paa raha.")
-        elif "timeout" in err:
-            msg = ("⚠️ Server took too long. Please try again." if language == "English"
-                   else "⚠️ Server ne bahut der laga di. Phir se try karo.")
-        else:
-            msg = (f"⚠️ Something went wrong: {e}" if language == "English"
-                   else f"⚠️ Kuch gadbad ho gayi: {e}")
+        resp = requests.post(url, json=payload, timeout=timeout)
+        resp.raise_for_status()
+        raw_out = resp.json()["message"]["content"].strip()
+        
+        # ── Robust Markdown Stripping ──
+        if raw_out.startswith("```"):
+            raw_out = raw_out.split("\n", 1)[-1]
+            if raw_out.endswith("```"):
+                raw_out = raw_out[:-3]
+            raw_out = raw_out.strip()
+            
+        data = json.loads(raw_out)
+        
+        # Ensure critical keys exist
+        data.setdefault("action", "explain")
+        data.setdefault("tutor_response", "")
+        data.setdefault("topic", "General")
+        data.setdefault("status", "Learning")
+        return data
+        
+    except requests.exceptions.ConnectionError:
+        msg = ("⚠️ Unable to connect to Ollama server." if language == "English"
+               else "⚠️ Ollama server se connect nahi ho paa raha.")
         return {"action": "clarify", "tutor_response": msg, "topic": "Error", "status": "Error"}
-
+    except requests.exceptions.Timeout:
+        msg = ("⚠️ Server took too long. Please try again." if language == "English"
+               else "⚠️ Server ne bahut der laga di. Phir se try karo.")
+        return {"action": "clarify", "tutor_response": msg, "topic": "Error", "status": "Error"}
+    except json.JSONDecodeError as e:
+        logger.error("JSON parse error from Ollama. Raw output: %s", raw_out)
+        msg = ("⚠️ Model returned invalid format. Please try again." if language == "English"
+               else "⚠️ Model ne galat format diya. Phir se try karo.")
+        return {"action": "clarify", "tutor_response": msg, "topic": "Error", "status": "Error"}
+    except Exception as e:
+        logger.error("Error communicating with Ollama: %s", e)
+        msg = (f"⚠️ Something went wrong: {e}" if language == "English"
+               else f"⚠️ Kuch gadbad ho gayi: {e}")
+        return {"action": "clarify", "tutor_response": msg, "topic": "Error", "status": "Error"}
