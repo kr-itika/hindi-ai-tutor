@@ -6,7 +6,7 @@ Provides API endpoints for auth, progress tracking, and calendar data.
 
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
-from backend.gemini_api import get_response
+from backend.gemini_api import get_response, generate_title
 from backend.db_manager import (
     init_db, login_and_update_streak, log_concept,
     log_quiz_result, get_student_progress, get_due_reviews, get_calendar_data,
@@ -117,7 +117,7 @@ def chat():
             except Exception:
                 pass
 
-    # Persist messages to conversation history
+    # Persist messages and generate AI title for new conversations
     conversation_id = data.get("conversation_id")
     if student_id and conversation_id:
         try:
@@ -125,12 +125,20 @@ def chat():
             if user_input:
                 add_message(conversation_id, "user", user_input)
             add_message(conversation_id, "assistant", reply_text)
-            # Auto-title: use first 6 words of the opening message
+
+            # AI-generated title: only on the first exchange (title is still 'New Chat')
             convos = get_conversations(student_id)
             current = next((c for c in convos if c["conversation_id"] == conversation_id), None)
             if current and current["title"] == "New Chat" and user_input:
-                title = " ".join(user_input.split()[:6])[:60]
-                rename_conversation(conversation_id, title)
+                # Run title generation in a background thread so it doesn't block the response
+                import threading
+                def _make_title():
+                    try:
+                        title = generate_title(user_input, language)
+                        rename_conversation(conversation_id, title)
+                    except Exception:
+                        pass
+                threading.Thread(target=_make_title, daemon=True).start()
         except Exception:
             pass
 

@@ -31,6 +31,44 @@ MODE_OPTIONS = {
 MODE_TIMEOUT = {"Fast Result": 60, "Long Think": 300}
 
 
+def generate_title(user_message, language="Hindi"):
+    """Ask Ollama to generate a short descriptive title for a conversation.
+
+    Uses a minimal context window and low token budget so it's near-instant.
+    Falls back to a truncated version of the message if Ollama fails.
+    """
+    llm = ChatOllama(
+        model=MODEL_NAME,
+        base_url=OLLAMA_BASE_URL,
+        format="json",
+        temperature=0.3,   # deterministic — we want a consistent, factual title
+        num_ctx=512,
+        num_predict=64,
+    )
+    chain = llm | JsonOutputParser()
+
+    if language == "English":
+        prompt = (
+            f'Create a short, descriptive title (3 to 5 words) for a tutoring session '
+            f'that begins with this student message: "{user_message}"\n'
+            f'Reply ONLY with JSON: {{"title": "Your Title Here"}}'
+        )
+    else:
+        prompt = (
+            f'Is tutoring conversation ke liye ek chhota, spasht title banao (3 se 5 shabd) '
+            f'jo is student ke message se shuru hoti hai: "{user_message}"\n'
+            f'Sirf JSON mein jawab do: {{"title": "Aapka Title Yahan"}}'
+        )
+
+    try:
+        result = chain.invoke([HumanMessage(content=prompt)])
+        title = result.get("title", "").strip()
+        return title[:80] if title else user_message[:60]
+    except Exception as e:
+        logger.warning("generate_title failed: %s", e)
+        return user_message[:60]
+
+
 def get_system_prompt(language="Hindi", mode="Fast Result"):
     
     think_rule = ""
